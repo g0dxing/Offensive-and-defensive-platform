@@ -1,0 +1,1248 @@
+{% extends "base.html" %}
+
+{% block title %}管理面板 - 实时攻防平台{% endblock %}
+
+{% block content %}
+<div class="min-h-screen py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- 页面标题 -->
+        <div class="mb-8">
+            <h1 class="text-4xl font-bold text-white mb-2">
+                <i class="fas fa-cog mr-3 text-red-400"></i>管理面板
+            </h1>
+            <p class="text-gray-300">管理用户、比赛和系统配置</p>
+        </div>
+
+        <!-- 标签页导航 -->
+        <div class="mb-8">
+            <nav class="flex space-x-8 border-b border-gray-600">
+                <button class="tab-button active" data-tab="teams">
+                    <i class="fas fa-users mr-2"></i>队伍管理
+                </button>
+                <button class="tab-button" data-tab="competitions">
+                    <i class="fas fa-trophy mr-2"></i>比赛管理
+                </button>
+                <button class="tab-button" data-tab="targets">
+                    <i class="fas fa-bullseye mr-2"></i>靶标管理
+                </button>
+                <button class="tab-button" data-tab="logs">
+                    <i class="fas fa-file-alt mr-2"></i>系统日志
+                </button>
+                <button class="tab-button" data-tab="settings">
+                    <i class="fas fa-sliders-h mr-2"></i>系统设置
+                </button>
+            </nav>
+        </div>
+
+        <!-- 队伍管理标签页 -->
+        <div id="teams-tab" class="tab-content">
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- 创建队伍 -->
+                <div class="lg:col-span-1">
+                    <div class="cyber-card p-6 rounded-lg">
+                        <h3 class="text-xl font-bold text-white mb-4">
+                            <i class="fas fa-plus-circle mr-2"></i>批量创建队伍
+                        </h3>
+
+                        <form id="createTeamsForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">
+                                    队伍数量
+                                </label>
+                                <input type="number" id="teamCount" min="1" max="50" value="3"
+                                    class="cyber-input w-full px-3 py-2 rounded-lg" placeholder="请输入队伍数量">
+                                <p class="text-xs text-gray-400 mt-1">
+                                    每个队伍将自动创建3个成员账户
+                                </p>
+                            </div>
+
+                            <button type="submit" class="cyber-button w-full py-2 px-4 rounded-lg font-semibold"
+                                id="createTeamsBtn">
+                                <span id="createTeamsText">
+                                    <i class="fas fa-users mr-2"></i>创建队伍
+                                </span>
+                                <span id="createTeamsLoading" class="hidden">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>创建中...
+                                </span>
+                            </button>
+                        </form>
+
+                        <hr class="border-gray-600 my-6">
+
+                        <div class="space-y-4">
+                            <h4 class="font-semibold text-white">危险操作</h4>
+
+                            <button onclick="deleteAllUsers()"
+                                class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition duration-200">
+                                <i class="fas fa-trash-alt mr-2"></i>删除所有红队账户
+                            </button>
+
+                            <p class="text-xs text-gray-400">
+                                ⚠️ 此操作将删除所有红队用户和队伍数据，请谨慎操作
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 队伍列表 -->
+                <div class="lg:col-span-2">
+                    <div class="cyber-card p-6 rounded-lg">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-bold text-white">
+                                <i class="fas fa-list mr-2"></i>队伍列表
+                            </h3>
+                            <button onclick="loadTeams()" class="text-red-400 hover:text-red-300 text-sm">
+                                <i class="fas fa-sync-alt mr-1"></i>刷新
+                            </button>
+                        </div>
+
+
+
+                        <div id="teamsList" class="space-y-4">
+                            <div class="text-center text-gray-400 py-8">
+                                <i class="fas fa-spinner fa-spin mr-2"></i>
+                                正在加载队伍列表...
+                            </div>
+                        </div>
+
+
+
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 比赛管理标签页 -->
+        <div id="competitions-tab" class="tab-content hidden">
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- 创建比赛 -->
+                <div class="lg:col-span-1">
+                    <div class="cyber-card p-6 rounded-lg">
+                        <h3 class="text-xl font-bold text-white mb-4">
+                            <i class="fas fa-plus-circle mr-2"></i>创建比赛
+                        </h3>
+
+                        <form id="createCompetitionForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">
+                                    比赛名称
+                                </label>
+                                <input type="text" id="competitionName" required
+                                    class="cyber-input w-full px-3 py-2 rounded-lg" placeholder="请输入比赛名称">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">
+                                    比赛描述
+                                </label>
+                                <textarea id="competitionDescription" rows="3"
+                                    class="cyber-input w-full px-3 py-2 rounded-lg" placeholder="请输入比赛描述"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-300 mb-2">
+                                    背景故事
+                                </label>
+                                <textarea id="competitionStory" rows="4" class="cyber-input w-full px-3 py-2 rounded-lg"
+                                    placeholder="请输入比赛背景故事"></textarea>
+                            </div>
+
+                            <!-- 开始时间 -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">开始时间</label>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <input type="date" id="startDate"
+                                            class="cyber-input w-full px-3 py-2 rounded-lg" required>
+                                    </div>
+                                    <div>
+                                        <input type="time" id="startTime"
+                                            class="cyber-input w-full px-3 py-2 rounded-lg" required step="1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 结束时间 -->
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium text-gray-300 mb-2">结束时间</label>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <input type="date" id="endDate" class="cyber-input w-full px-3 py-2 rounded-lg"
+                                            required>
+                                    </div>
+                                    <div>
+                                        <input type="time" id="endTime" class="cyber-input w-full px-3 py-2 rounded-lg"
+                                            required step="1">
+                                    </div>
+                                </div>
+                            </div>
+
+
+
+
+                            <button type="submit" class="cyber-button w-full py-2 px-4 rounded-lg font-semibold"
+                                id="createCompetitionBtn">
+                                <span id="createCompetitionText">
+                                    <i class="fas fa-trophy mr-2"></i>创建比赛
+                                </span>
+                                <span id="createCompetitionLoading" class="hidden">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>创建中...
+                                </span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 比赛列表 -->
+                <div class="lg:col-span-2">
+                    <div class="cyber-card p-6 rounded-lg">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-bold text-white">
+                                <i class="fas fa-list mr-2"></i>比赛列表
+                            </h3>
+                            <button onclick="loadCompetitions()" class="text-red-400 hover:text-red-300 text-sm">
+                                <i class="fas fa-sync-alt mr-1"></i>刷新
+                            </button>
+                        </div>
+
+                        <div id="competitionsList" class="space-y-4">
+                            <div class="text-center text-gray-400 py-8">
+                                <i class="fas fa-spinner fa-spin mr-2"></i>
+                                正在加载比赛列表...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 靶标管理标签页 -->
+        <div id="targets-tab" class="tab-content hidden">
+            <div class="cyber-card p-6 rounded-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">
+                        <i class="fas fa-bullseye mr-2"></i>靶标管理
+                    </h3>
+                    <button onclick="loadTargets()" class="text-red-400 hover:text-red-300 text-sm">
+                        <i class="fas fa-sync-alt mr-1"></i>刷新
+                    </button>
+                </div>
+                <!-- deepseek -->
+                <!-- <div id="targetsList" class="space-y-4">
+                    <div class="text-center text-gray-400 py-8">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        正在加载靶标列表...
+                    </div>
+                </div> -->
+                <!-- deepseek -->
+                <div class="mb-4">
+                    <button onclick="showAddTargetModal()" class="cyber-button py-2 px-4 rounded-lg font-semibold">
+                        <i class="fas fa-plus mr-2"></i>添加靶标
+                    </button>
+                </div>
+
+                <div id="targetsList" class="space-y-4">
+                    <div class="text-center text-gray-400 py-8">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        正在加载靶标列表...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系统日志标签页 -->
+        <div id="logs-tab" class="tab-content hidden">
+            <div class="cyber-card p-6 rounded-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">
+                        <i class="fas fa-file-alt mr-2"></i>系统日志
+                    </h3>
+                    <div class="flex items-center space-x-4">
+                        <select id="logFilter" class="cyber-input px-3 py-1 rounded text-sm">
+                            <option value="">所有类型</option>
+                            <option value="login">登录</option>
+                            <option value="attack">攻击</option>
+                            <option value="system">系统</option>
+                            <option value="error">错误</option>
+                            <option value="success">成功</option>
+                        </select>
+                        <button onclick="loadLogs()" class="text-red-400 hover:text-red-300 text-sm">
+                            <i class="fas fa-sync-alt mr-1"></i>刷新
+                        </button>
+                    </div>
+                </div>
+
+                <div id="logsList" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="text-center text-gray-400 py-8">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        正在加载日志...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 系统设置标签页 -->
+        <div id="settings-tab" class="tab-content hidden">
+            <div class="grid lg:grid-cols-2 gap-8">
+                <div class="cyber-card p-6 rounded-lg">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-sliders-h mr-2"></i>平台状态
+                    </h3>
+
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-center p-3 bg-gray-800 rounded">
+                            <span class="text-gray-300">WebSocket连接</span>
+                            <span id="websocketStatus" class="text-red-400">
+                                <i class="fas fa-circle mr-1"></i>断开
+                            </span>
+                        </div>
+
+                        <div class="flex justify-between items-center p-3 bg-gray-800 rounded">
+                            <span class="text-gray-300">数据库连接</span>
+                            <span class="text-green-400">
+                                <i class="fas fa-circle mr-1"></i>正常
+                            </span>
+                        </div>
+
+                        <div class="flex justify-between items-center p-3 bg-gray-800 rounded">
+                            <span class="text-gray-300">系统时间</span>
+                            <span id="systemTime" class="text-white">
+                                --
+                            </span>
+                        </div>
+
+                        <div class="flex justify-between items-center p-3 bg-gray-800 rounded">
+                            <span class="text-gray-300">在线用户</span>
+                            <span id="onlineUsers" class="text-yellow-400">
+                                0
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cyber-card p-6 rounded-lg">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-tools mr-2"></i>维护工具
+                    </h3>
+
+                    <div class="space-y-4">
+                        <button onclick="clearSystemLogs()"
+                            class="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded-lg font-semibold transition duration-200">
+                            <i class="fas fa-broom mr-2"></i>清理系统日志
+                        </button>
+
+                        <button onclick="resetScores()"
+                            class="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg font-semibold transition duration-200">
+                            <i class="fas fa-undo mr-2"></i>重置所有积分
+                        </button>
+
+                        <button onclick="restartSystem()"
+                            class="w-full bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg font-semibold transition duration-200">
+                            <i class="fas fa-redo mr-2"></i>重启系统
+                        </button>
+                    </div>
+
+                    <div class="mt-6 p-4 bg-red-900 border border-red-700 rounded-lg">
+                        <h4 class="font-semibold text-red-200 mb-2">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>危险操作警告
+                        </h4>
+                        <p class="text-red-200 text-sm">
+                            重置积分和重启系统将清除所有当前数据，请确保已备份重要信息。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 模态框 -->
+<div id="modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div class="cyber-card p-6 rounded-lg max-w-md w-full">
+            <div id="modalContent"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 标签页切换
+    document.addEventListener('DOMContentLoaded', function () {
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                const tabId = this.getAttribute('data-tab');
+
+                // 更新按钮状态
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+
+                // 更新内容显示
+                tabContents.forEach(content => {
+                    if (content.id === tabId + '-tab') {
+                        content.classList.remove('hidden');
+                    } else {
+                        content.classList.add('hidden');
+                    }
+                });
+
+                // 加载对应数据
+                switch (tabId) {
+                    case 'teams':
+                        loadTeams();
+                        break;
+                    case 'competitions':
+                        loadCompetitions();
+                        break;
+                    case 'targets':
+                        loadTargets();
+                        break;
+                    case 'logs':
+                        loadLogs();
+                        break;
+                    case 'settings':
+                        updateSystemStatus();
+                        break;
+                }
+            });
+        });
+
+        // 初始加载队伍数据
+        loadTeams();
+
+        // 每秒更新系统时间
+        setInterval(updateSystemTime, 1000);
+        updateSystemTime();
+    });
+
+    // 样式定义
+    const style = document.createElement('style');
+    style.textContent = `
+        .tab-button {
+            color: #9ca3af;
+            padding: 0.5rem 1rem;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .tab-button:hover {
+            color: #f59e0b;
+        }
+        
+        .tab-button.active {
+            color: #f59e0b;
+            border-bottom-color: #dc2626;
+        }
+    `;
+    document.head.appendChild(style);
+
+    // 加载队伍列表
+    async function loadTeams() {
+        try {
+            const response = await axios.get('/api/rankings');
+            if (response.data.success) {
+                const teams = response.data.team_rankings;
+                const teamsList = document.getElementById('teamsList');
+
+                if (teams.length === 0) {
+                    teamsList.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-users mr-2"></i>
+                            暂无队伍数据
+                        </div>
+                    `;
+                    return;
+                }
+
+                teamsList.innerHTML = teams.map(team => `
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-users text-white"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-white">${team.team_name}</h4>
+                                    <p class="text-sm text-gray-400">${team.member_count} 名成员</p>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-lg font-bold text-yellow-400">${team.total_score}</div>
+                                <div class="text-xs text-gray-400">积分</div>
+                            </div>
+                        </div>
+                        <!-- 添加查看账户按钮 -->
+                        <div class="mt-3 pt-3 border-t border-gray-700">
+                            <button onclick="showTeamAccounts(${team.id})" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded text-sm">
+                                <i class="fas fa-eye mr-1"></i>查看账户信息
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('加载队伍列表失败:', error);
+        }
+    }
+
+    // 创建队伍
+    document.getElementById('createTeamsForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const teamCount = parseInt(document.getElementById('teamCount').value);
+        const createTeamsBtn = document.getElementById('createTeamsBtn');
+        const createTeamsText = document.getElementById('createTeamsText');
+        const createTeamsLoading = document.getElementById('createTeamsLoading');
+
+        if (!teamCount || teamCount < 1 || teamCount > 50) {
+            showNotification('队伍数量必须在1-50之间', 'error');
+            return;
+        }
+
+        // 显示加载状态
+        createTeamsBtn.disabled = true;
+        createTeamsText.classList.add('hidden');
+        createTeamsLoading.classList.remove('hidden');
+
+        try {
+            const response = await axios.post('/api/admin/create_teams', {
+                team_count: teamCount
+            });
+
+            if (response.data.success) {
+                showNotification(`成功创建 ${teamCount} 个队伍`, 'success');
+
+                // 显示创建的账户信息
+                showModal(`
+                    <h3 class="text-xl font-bold text-white mb-4">创建成功</h3>
+                    <div class="space-y-4 max-h-96 overflow-y-auto">
+                        <p class="text-gray-300">成功创建 ${teamCount} 个队伍，每个队伍3名成员</p>
+                        <div class="space-y-2">
+                            ${response.data.teams.map(team => `
+                                <div class="bg-gray-800 p-3 rounded">
+                                    <h4 class="font-semibold text-red-400">${team.team_name}</h4>
+                                    ${team.members.map(member => `
+                                        <div class="text-sm text-gray-300 mt-1">
+                                            ${member.nickname}: ${member.username} / ${member.password}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            `).join('')}
+                        </div>
+                        <div class="text-sm text-yellow-400">
+                            ⚠️ 请妥善保存这些账户信息
+                        </div>
+                    </div>
+                `);
+
+                // 重新加载队伍列表
+                loadTeams();
+            } else {
+                showNotification(response.data.message || '创建失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('创建队伍失败:', error);
+            showNotification('创建请求失败', 'error');
+        } finally {
+            // 恢复按钮状态
+            createTeamsBtn.disabled = false;
+            createTeamsText.classList.remove('hidden');
+            createTeamsLoading.classList.add('hidden');
+        }
+    });
+
+    // 删除所有用户
+    async function deleteAllUsers() {
+        if (!confirm('确定要删除所有红队账户吗？此操作不可恢复！')) {
+            return;
+        }
+
+        if (!confirm('请再次确认：这将删除所有红队用户和队伍数据！')) {
+            return;
+        }
+
+        try {
+            const response = await axios.delete('/api/admin/delete_all_users');
+
+            if (response.data.success) {
+                showNotification('所有红队账户已删除', 'success');
+                loadTeams();
+            } else {
+                showNotification(response.data.message || '删除失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('删除用户失败:', error);
+            showNotification('删除请求失败', 'error');
+        }
+    }
+
+    // 加载比赛列表
+    async function loadCompetitions() {
+        try {
+            const response = await axios.get('/api/admin/competitions');
+            if (response.data.success) {
+                const competitions = response.data.competitions;
+                const competitionsList = document.getElementById('competitionsList');
+
+                if (competitions.length === 0) {
+                    competitionsList.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-trophy mr-2"></i>
+                            暂无比赛数据
+                        </div>
+                    `;
+                    return;
+                }
+
+                competitionsList.innerHTML = competitions.map(competition => `
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-semibold text-white">${competition.name}</h4>
+                            <div class="flex items-center space-x-2">
+                            ${competition.is_ended ?
+                        '<span class="px-2 py-1 bg-gray-600 text-xs rounded">已结束</span>' :
+                        competition.is_active ?
+                            '<span class="px-2 py-1 bg-green-600 text-xs rounded">进行中</span>' :
+                            '<span class="px-2 py-1 bg-yellow-600 text-xs rounded">未开始</span>'
+                    }       
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-3">${competition.description || '暂无描述'}</p>
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                            <span>创建时间: ${formatTime(competition.created_at)}</span>
+                            <div class="space-x-2">
+                                ${!competition.is_ended ?
+                        `<button onclick="endCompetition(${competition.id})" class="text-red-400 hover:text-red-300">结束比赛</button>` :
+                        '<span class="text-gray-500">已结束</span>'
+                    }
+                                <button onclick="deleteCompetition(${competition.id})" class="text-red-600 hover:text-red-500">
+                                    <i class="fas fa-trash mr-1"></i>删除
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('加载比赛列表失败:', error);
+        }
+    }
+
+    // 创建比赛
+    document.getElementById('createCompetitionForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const formData = {
+            name: document.getElementById('competitionName').value,
+            description: document.getElementById('competitionDescription').value,
+            background_story: document.getElementById('competitionStory').value,
+            start_time: document.getElementById('startDate').value + 'T' + document.getElementById('startTime').value,
+            end_time: document.getElementById('endDate').value + 'T' + document.getElementById('endTime').value,
+            targets: [
+                {
+                    name: 'Web服务器',
+                    ip_address: '192.168.1.100',
+                    points: 100,
+                    description: 'Web应用服务靶标'
+                },
+                {
+                    name: '数据库服务器',
+                    ip_address: '192.168.1.101',
+                    points: 150,
+                    description: '数据库服务靶标'
+                },
+                {
+                    name: '文件服务器',
+                    ip_address: '192.168.1.102',
+                    points: 80,
+                    description: '文件服务靶标'
+                }
+            ]
+        };
+
+        const createCompetitionBtn = document.getElementById('createCompetitionBtn');
+        const createCompetitionText = document.getElementById('createCompetitionText');
+        const createCompetitionLoading = document.getElementById('createCompetitionLoading');
+
+        // 显示加载状态
+        createCompetitionBtn.disabled = true;
+        createCompetitionText.classList.add('hidden');
+        createCompetitionLoading.classList.remove('hidden');
+
+        try {
+            const response = await axios.post('/api/admin/competitions', formData);
+
+            if (response.data.success) {
+                showNotification('比赛创建成功', 'success');
+
+                // 清空表单
+                this.reset();
+
+                // 重新加载比赛列表
+                loadCompetitions();
+            } else {
+                showNotification(response.data.message || '创建失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('创建比赛失败:', error);
+            showNotification('创建请求失败', 'error');
+        } finally {
+            // 恢复按钮状态
+            createCompetitionBtn.disabled = false;
+            createCompetitionText.classList.remove('hidden');
+            createCompetitionLoading.classList.add('hidden');
+        }
+    });
+
+    // 结束比赛
+    async function endCompetition(competitionId) {
+        if (!confirm('确定要结束这场比赛吗？结束后将无法再提交Flag！')) {
+            return;
+        }
+
+        try {
+            const response = await axios.post(`/api/admin/competitions/${competitionId}/end`);
+
+            if (response.data.success) {
+                showNotification('比赛已结束', 'success');
+                loadCompetitions();
+            } else {
+                showNotification(response.data.message || '操作失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('结束比赛失败:', error);
+            showNotification('请求失败', 'error');
+        }
+    }
+    // deepseek
+    // 加载靶标列表
+    // async function loadTargets() {
+    //     try {
+    //         const response = await axios.get('/api/targets');
+    //         if (response.data.success) {
+    //             const targets = response.data.targets;
+    //             const targetsList = document.getElementById('targetsList');
+
+    //             if (targets.length === 0) {
+    //                 targetsList.innerHTML = `
+    //                     <div class="text-center text-gray-400 py-8">
+    //                         <i class="fas fa-bullseye mr-2"></i>
+    //                         暂无靶标数据
+    //                     </div>
+    //                 `;
+    //                 return;
+    //             }
+
+    //             targetsList.innerHTML = targets.map(target => `
+    //                 <div class="bg-gray-800 p-4 rounded-lg">
+    //                     <div class="flex items-center justify-between mb-2">
+    //                         <h4 class="font-semibold text-white">${target.name}</h4>
+    //                         <div class="flex items-center space-x-2">
+    //                             <span class="px-2 py-1 bg-red-600 text-xs rounded">${target.points}分</span>
+    //                         </div>
+    //                     </div>
+    //                     <p class="text-sm text-gray-400 mb-2">${target.description || '暂无描述'}</p>
+    //                     <div class="flex items-center justify-between text-xs text-gray-500">
+    //                         <span>IP: ${target.ip_address}</span>
+    //                         <span>ID: ${target.id}</span>
+    //                     </div>
+    //                 </div>
+    //             `).join('');
+    //         }
+    //     } catch (error) {
+    //         console.error('加载靶标列表失败:', error);
+    //     }
+    // }
+
+    // 删除比赛
+    async function deleteCompetition(competitionId) {
+        if (!confirm('确定要删除这个比赛吗？此操作将删除所有相关靶标，不可恢复！')) {
+            return;
+        }
+
+        try {
+            const response = await axios.delete(`/api/admin/competitions/${competitionId}`);
+
+            if (response.data.success) {
+                showNotification('比赛删除成功', 'success');
+                loadCompetitions();
+            } else {
+                showNotification(response.data.message || '删除失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('删除比赛失败:', error);
+            showNotification('删除请求失败', 'error');
+        }
+    }
+
+
+
+    // 加载靶标列表
+    async function loadTargets() {
+        try {
+            const response = await axios.get('/api/admin/targets');
+            if (response.data.success) {
+                const targets = response.data.targets;
+                const targetsList = document.getElementById('targetsList');
+
+                if (targets.length === 0) {
+                    targetsList.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-bullseye mr-2"></i>
+                            暂无靶标数据
+                        </div>
+                    `;
+                    return;
+                }
+
+                targetsList.innerHTML = targets.map(target => `
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-semibold text-white">${target.name}</h4>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 bg-red-600 text-xs rounded">${target.points}分</span>
+                                <span class="px-2 py-1 ${target.is_active ? 'bg-green-600' : 'bg-gray-600'} text-xs rounded">
+                                    ${target.is_active ? '活跃' : '禁用'}
+                                </span>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-400 mb-2">${target.description || '暂无描述'}</p>
+                        <div class="grid grid-cols-2 gap-2 mb-3 text-xs">
+                            <div><span class="text-gray-500">IP:</span> ${target.ip_address}</div>
+                            <div><span class="text-gray-500">Flag:</span> ${target.flag}</div>
+                            <div><span class="text-gray-500">比赛:</span> ${target.competition_name || '未分配'}</div>
+                            <div><span class="text-gray-500">ID:</span> ${target.id}</div>
+                        </div>
+                        <div class="flex justify-end space-x-2">
+                            <button onclick="editTarget(${target.id})" class="text-yellow-400 hover:text-yellow-300 text-sm">
+                                <i class="fas fa-edit mr-1"></i>编辑
+                            </button>
+                            <button onclick="deleteTarget(${target.id})" class="text-red-400 hover:text-red-300 text-sm">
+                                <i class="fas fa-trash mr-1"></i>删除
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('加载靶标列表失败:', error);
+        }
+    }
+
+    // 显示添加靶标模态框
+    function showAddTargetModal() {
+        showModal(`
+            <h3 class="text-xl font-bold text-white mb-4">添加靶标</h3>
+            <form id="addTargetForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">靶标名称</label>
+                    <input type="text" id="targetName" required class="cyber-input w-full px-3 py-2 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">IP地址</label>
+                    <input type="text" id="targetIp" required class="cyber-input w-full px-3 py-2 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">Flag</label>
+                    <input type="text" id="targetFlag" class="cyber-input w-full px-3 py-2 rounded-lg" placeholder="留空将自动生成">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">分值</label>
+                    <input type="number" id="targetPoints" value="100" class="cyber-input w-full px-3 py-2 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-300 mb-2">描述</label>
+                    <textarea id="targetDescription" rows="3" class="cyber-input w-full px-3 py-2 rounded-lg"></textarea>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-600 rounded">取消</button>
+                    <button type="submit" class="cyber-button px-4 py-2 rounded">添加</button>
+                </div>
+            </form>
+        `);
+
+        document.getElementById('addTargetForm').addEventListener('submit', async function (e) {
+            e.preventDefault();
+            await addTarget();
+        });
+    }
+
+    // 添加靶标
+    async function addTarget() {
+        try {
+            const formData = {
+                name: document.getElementById('targetName').value,
+                ip_address: document.getElementById('targetIp').value,
+                flag: document.getElementById('targetFlag').value || undefined,
+                points: parseInt(document.getElementById('targetPoints').value),
+                description: document.getElementById('targetDescription').value
+            };
+
+            const response = await axios.post('/api/admin/targets', formData);
+
+            if (response.data.success) {
+                showNotification('靶标添加成功', 'success');
+                closeModal();
+                loadTargets();
+            } else {
+                showNotification(response.data.message, 'error');
+            }
+        } catch (error) {
+            console.error('添加靶标失败:', error);
+            showNotification('添加失败', 'error');
+        }
+    }
+
+    // 删除靶标
+    async function deleteTarget(targetId) {
+        if (!confirm('确定要删除这个靶标吗？此操作不可恢复！')) {
+            return;
+        }
+
+        try {
+            const response = await axios.delete('/api/admin/targets', {
+                data: { target_id: targetId }
+            });
+
+            if (response.data.success) {
+                showNotification('靶标删除成功', 'success');
+                loadTargets();
+            } else {
+                showNotification(response.data.message, 'error');
+            }
+        } catch (error) {
+            console.error('删除靶标失败:', error);
+            showNotification('删除失败', 'error');
+        }
+    }
+
+    // 编辑靶标
+    async function editTarget(targetId) {
+        try {
+            // 获取靶标信息
+            const response = await axios.get(`/api/admin/targets/${targetId}`);
+
+            if (response.data.success) {
+                const target = response.data.target;
+
+                showModal(`
+                <h3 class="text-xl font-bold text-white mb-4">编辑靶标</h3>
+                <form id="editTargetForm" class="space-y-4">
+                    <input type="hidden" id="editTargetId" value="${target.id}">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">靶标名称</label>
+                        <input type="text" id="editTargetName" value="${target.name}" required class="cyber-input w-full px-3 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">IP地址</label>
+                        <input type="text" id="editTargetIp" value="${target.ip_address}" required class="cyber-input w-full px-3 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">Flag</label>
+                        <input type="text" id="editTargetFlag" value="${target.flag}" class="cyber-input w-full px-3 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">分值</label>
+                        <input type="number" id="editTargetPoints" value="${target.points}" class="cyber-input w-full px-3 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">描述</label>
+                        <textarea id="editTargetDescription" rows="3" class="cyber-input w-full px-3 py-2 rounded-lg">${target.description || ''}</textarea>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="editTargetActive" ${target.is_active ? 'checked' : ''} class="mr-2">
+                        <label class="text-sm font-medium text-gray-300">是否活跃</label>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-600 rounded">取消</button>
+                        <button type="submit" class="cyber-button px-4 py-2 rounded">保存</button>
+                    </div>
+                </form>
+            `);
+
+                document.getElementById('editTargetForm').addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    await saveTarget(targetId);
+                });
+            }
+        } catch (error) {
+            console.error('获取靶标信息失败:', error);
+            showNotification('获取靶标信息失败', 'error');
+        }
+    }
+
+    // 保存靶标编辑
+    async function saveTarget(targetId) {
+        try {
+            const formData = {
+                name: document.getElementById('editTargetName').value,
+                ip_address: document.getElementById('editTargetIp').value,
+                flag: document.getElementById('editTargetFlag').value,
+                points: parseInt(document.getElementById('editTargetPoints').value),
+                description: document.getElementById('editTargetDescription').value,
+                is_active: document.getElementById('editTargetActive').checked
+            };
+
+            const response = await axios.put(`/api/admin/targets/${targetId}`, formData);
+
+            if (response.data.success) {
+                showNotification('靶标更新成功', 'success');
+                closeModal();
+                loadTargets();
+            } else {
+                showNotification(response.data.message, 'error');
+            }
+        } catch (error) {
+            console.error('更新靶标失败:', error);
+            showNotification('更新失败', 'error');
+        }
+    }
+    // deepseek
+
+
+    // 加载系统日志
+    async function loadLogs() {
+        try {
+            const logFilter = document.getElementById('logFilter').value;
+            const url = logFilter ? `/api/admin/logs?type=${logFilter}` : '/api/admin/logs';
+
+            const response = await axios.get(url);
+            if (response.data.success) {
+                const logs = response.data.logs;
+                const logsList = document.getElementById('logsList');
+
+                if (logs.length === 0) {
+                    logsList.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-file-alt mr-2"></i>
+                            暂无日志数据
+                        </div>
+                    `;
+                    return;
+                }
+
+                logsList.innerHTML = logs.map(log => `
+                    <div class="log-entry ${log.type} p-2 border-b border-gray-700">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas ${getLogTypeIcon(log.type)} mr-2 ${getSeverityColor(log.severity)}"></i>
+                                <span class="text-sm">${log.message}</span>
+                            </div>
+                            <span class="text-xs text-gray-400">${formatTime(log.created_at)}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('加载系统日志失败:', error);
+            const logsList = document.getElementById('logsList');
+            logsList.innerHTML = `
+                <div class="text-center text-red-400 py-8">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    加载日志失败
+                </div>
+            `;
+        }
+    }
+
+    // 更新系统状态
+    async function updateSystemStatus() {
+        try {
+            // 更新WebSocket状态
+            const websocketStatus = document.getElementById('websocketStatus');
+            if (socket && socket.connected) {
+                websocketStatus.innerHTML = '<i class="fas fa-circle mr-1"></i>已连接';
+                websocketStatus.className = 'text-green-400';
+            } else {
+                websocketStatus.innerHTML = '<i class="fas fa-circle mr-1"></i>断开';
+                websocketStatus.className = 'text-red-400';
+                
+                // 尝试重新连接
+                if (!socket || !socket.connected) {
+                    connectWebSocket();
+                }
+            }
+
+            // 获取在线用户数
+            const response = await axios.get('/api/admin/online_users');
+            if (response.data.success) {
+                const onlineUsers = document.getElementById('onlineUsers');
+                onlineUsers.textContent = response.data.online_users;
+            }
+
+        } catch (error) {
+            console.error('更新系统状态失败:', error);
+        }
+    }
+
+
+    // 更新系统时间
+    function updateSystemTime() {
+        const systemTime = document.getElementById('systemTime');
+        systemTime.textContent = new Date().toLocaleString('zh-CN');
+    }
+
+    // 模态框函数
+    function showModal(content) {
+        const modal = document.getElementById('modal');
+        const modalContent = document.getElementById('modalContent');
+
+        modalContent.innerHTML = content + `
+            <div class="mt-6 text-center">
+                <button onclick="closeModal()" class="cyber-button px-4 py-2 rounded">
+                    <i class="fas fa-times mr-2"></i>关闭
+                </button>
+            </div>
+        `;
+
+        modal.classList.remove('hidden');
+    }
+
+    function closeModal() {
+        document.getElementById('modal').classList.add('hidden');
+    }
+
+    // 清除系统日志
+    async function clearSystemLogs() {
+        if (!confirm('确定要清除所有收集的系统日志吗？此操作不可恢复！')) {
+            return;
+        }
+
+        try {
+            const response = await axios.post('/api/admin/clear_logs');
+
+            if (response.data.success) {
+                showNotification(response.data.message, 'success');
+                // 重新加载日志列表
+                loadLogs();
+            } else {
+                showNotification(response.data.message || '清除失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('清除系统日志失败:', error);
+            showNotification('清除请求失败', 'error');
+        }
+    }
+
+    async function resetScores() {
+        if (!confirm('确定要重置所有积分吗？此操作不可恢复！')) {
+            return;
+        }
+
+        if (!confirm('请再次确认：这将清除所有用户和队伍的积分数据！')) {
+            return;
+        }
+
+        try {
+            const response = await axios.post('/api/admin/reset_scores');
+
+            if (response.data.success) {
+                showNotification('所有积分已重置', 'success');
+                // 重新加载数据
+                loadTeams();
+            } else {
+                showNotification(response.data.message || '重置失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('重置积分失败:', error);
+            showNotification('重置请求失败', 'error');
+        }
+    }
+
+    function restartSystem() {
+        if (confirm('确定要重启系统吗？这将导致所有用户断开连接！')) {
+            showNotification('系统重启功能开发中...', 'info');
+        }
+    }
+
+    // 点击模态框外部关闭
+    document.getElementById('modal').addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeModal();
+        }
+    });
+
+
+    // 查看队伍账户信息
+    async function showTeamAccounts(teamId) {
+        try {
+            const response = await axios.get(`/api/admin/teams/${teamId}/accounts`);
+            if (response.data.success) {
+                const team = response.data.team;
+                const accounts = response.data.accounts;
+
+                showModal(`
+                    <h3 class="text-xl font-bold text-white mb-4">${team.team_name} - 账户信息</h3>
+                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                        ${accounts.map(account => `
+                            <div class="bg-gray-800 p-3 rounded">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="font-semibold text-white">${account.nickname}</span>
+                                    <span class="text-sm ${account.is_active ? 'text-green-400' : 'text-red-400'}">
+                                        ${account.is_active ? '活跃' : '禁用'}
+                                    </span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2 text-sm">
+                                    <div><span class="text-gray-400">用户名:</span> ${account.username}</div>
+                                    <div><span class="text-gray-400">密码:</span> ${account.password}</div>
+                                    <div><span class="text-gray-400">积分:</span> ${account.total_score}</div>
+                                    <div><span class="text-gray-400">创建时间:</span> ${new Date(account.created_at).toLocaleString()}</div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="mt-4 p-3 bg-yellow-900 border border-yellow-700 rounded">
+                        <p class="text-yellow-200 text-sm">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            请妥善保管这些账户信息，建议复制后保存到安全的地方
+                        </p>
+                    </div>
+                `);
+            } else {
+                showNotification(response.data.message || '获取账户信息失败', 'error');
+            }
+        } catch (error) {
+            console.error('获取队伍账户失败:', error);
+            showNotification('获取账户信息失败', 'error');
+        }
+    }
+
+
+    // 添加这个函数：
+function getLogTypeIcon(logType) {
+    const iconMap = {
+        'login': 'fa-sign-in-alt',
+        'attack': 'fa-bolt', 
+        'system': 'fa-cog',
+        'error': 'fa-exclamation-triangle',
+        'success': 'fa-check-circle',
+        'warning': 'fa-exclamation-circle',
+        'network': 'fa-network-wired',
+        'file_integrity': 'fa-file-shield',
+        'malware_detection': 'fa-virus'
+    };
+    return iconMap[logType] || 'fa-file-alt';
+}
+
+function getSeverityColor(severity) {
+    const colorMap = {
+        'low': 'text-green-400',
+        'medium': 'text-yellow-400', 
+        'high': 'text-red-400',
+        'critical': 'text-red-600'
+    };
+    return colorMap[severity] || 'text-gray-400';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,538 @@
+{% extends "base.html" %}
+
+{% block title %}用户面板 - 实时攻防平台{% endblock %}
+
+{% block content %}
+<div class="min-h-screen py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- 欢迎区域 -->
+        <div class="mb-8">
+            <div class="cyber-card p-6 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-4">
+                        <div
+                            class="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-user text-white text-2xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-white">
+                                欢迎回来，<span id="userNickname">{{ session.get('nickname', session.get('username'))
+                                    }}</span>
+                            </h1>
+                            <p class="text-gray-300">
+                                所属队伍：<span id="teamName" class="text-yellow-400">加载中...</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-3xl font-bold text-yellow-400" id="userScore">0</div>
+                        <div class="text-sm text-gray-400">当前积分</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="grid md:grid-cols-4 gap-6 mb-8">
+            <div class="cyber-card p-6 text-center">
+                <div class="text-2xl font-bold text-red-400 mb-2" id="teamRank">-</div>
+                <div class="text-gray-300 text-sm">队伍排名</div>
+            </div>
+
+            <div class="cyber-card p-6 text-center">
+                <div class="text-2xl font-bold text-blue-400 mb-2" id="personalRank">-</div>
+                <div class="text-gray-300 text-sm">个人排名</div>
+            </div>
+
+            <div class="cyber-card p-6 text-center">
+                <div class="text-2xl font-bold text-green-400 mb-2" id="flagsSubmitted">0</div>
+                <div class="text-gray-300 text-sm">已提交Flag</div>
+            </div>
+
+            <div class="cyber-card p-6 text-center">
+                <div class="text-2xl font-bold text-purple-400 mb-2" id="activeTargets">0</div>
+                <div class="text-gray-300 text-sm">可攻击靶标</div>
+            </div>
+        </div>
+
+        <!-- 主要内容区域 -->
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- 左侧：Flag提交和靶标 -->
+            <div class="lg:col-span-2 space-y-8">
+                <!-- Flag提交 -->
+                <div class="cyber-card p-6 rounded-lg">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-flag mr-2"></i>Flag提交
+                    </h3>
+
+                    <form id="flagSubmitForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                Flag格式：FLAG{XXXXXXXXXXXXXXXX}
+                            </label>
+                            <div class="flex space-x-2">
+                                <input type="text" id="flagInput" class="cyber-input flex-1 px-3 py-2 rounded-lg"
+                                    placeholder="请输入Flag" pattern="FLAG\{[A-Z0-9]{16}\}"
+                                    title="Flag格式：FLAG{16位大写字母和数字}">
+                                <button type="submit" class="cyber-button px-6 py-2 rounded-lg font-semibold"
+                                    id="submitFlagBtn">
+                                    <span id="submitFlagText">
+                                        <i class="fas fa-paper-plane mr-2"></i>提交
+                                    </span>
+                                    <span id="submitFlagLoading" class="hidden">
+                                        <i class="fas fa-spinner fa-spin mr-2"></i>提交中...
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- 提交历史 -->
+                    <div class="mt-6">
+                        <h4 class="font-semibold text-white mb-3">最近提交</h4>
+                        <div id="submissionHistory" class="space-y-2 max-h-32 overflow-y-auto">
+                            <div class="text-gray-400 text-sm text-center py-4">
+                                暂无提交记录
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 靶标列表 -->
+                <div class="cyber-card p-6 rounded-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold text-white">
+                            <i class="fas fa-bullseye mr-2"></i>可攻击靶标
+                        </h3>
+                        <button onclick="loadTargets()" class="text-red-400 hover:text-red-300 text-sm">
+                            <i class="fas fa-sync-alt mr-1"></i>刷新
+                        </button>
+                    </div>
+
+                    <div id="targetsList" class="space-y-3">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            正在加载靶标列表...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：排行榜和个人信息 -->
+            <div class="space-y-8">
+                <!-- 个人信息管理 -->
+                <div class="cyber-card p-6 rounded-lg">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-user-cog mr-2"></i>个人信息
+                    </h3>
+
+
+                    <form id="profileForm" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                昵称
+                            </label>
+                            <input type="text" id="nicknameInput" class="cyber-input w-full px-3 py-2 rounded-lg"
+                                placeholder="请输入昵称">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">
+                                邮箱
+                            </label>
+                            <input type="email" id="emailInput" class="cyber-input w-full px-3 py-2 rounded-lg"
+                                placeholder="请输入邮箱">
+                        </div>
+
+                        <button type="submit" class="cyber-button w-full py-2 px-4 rounded-lg font-semibold">
+                            <i class="fas fa-save mr-2"></i>保存修改
+                        </button>
+                    </form>
+
+                    <hr class="border-gray-600 my-6">
+
+                    <!-- 队伍重命名 -->
+                    <div>
+                        <h4 class="font-semibold text-white mb-3">队伍设置</h4>
+                        <form id="renameTeamForm" class="space-y-3">
+                            <div>
+                                <input type="text" id="teamNameInput" class="cyber-input w-full px-3 py-2 rounded-lg"
+                                    placeholder="输入新队伍名称">
+                            </div>
+                            <button type="submit"
+                                class="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2 px-4 rounded-lg font-semibold">
+                                <i class="fas fa-edit mr-2"></i>重命名队伍
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 队伍排行榜 -->
+                <div class="cyber-card p-6 rounded-lg">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-trophy mr-2"></i>队伍排行
+                    </h3>
+
+                    <div id="teamRankings" class="space-y-2">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            正在加载排行榜...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 个人排行榜 -->
+                <div class="cyber-card p-6 rounded-lg">
+                    <h3 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-medal mr-2"></i>个人排行
+                    </h3>
+
+                    <div id="userRankings" class="space-y-2">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            正在加载排行榜...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // 加载用户数据
+        loadUserData();
+        loadTargets();
+        loadRankings();
+
+        // 每30秒刷新一次数据
+        setInterval(loadRankings, 30000);
+        setInterval(loadTargets, 60000);
+
+        // 监听WebSocket积分更新
+        window.addEventListener('scoreUpdate', function (event) {
+            loadRankings();
+            loadUserData();
+        });
+    });
+
+    // 加载用户数据
+    async function loadUserData() {
+        try {
+            const response = await axios.get('/api/user/profile');
+            if (response.data.success) {
+                const user = response.data.user;
+
+                // 更新用户信息
+                document.getElementById('userNickname').textContent = user.nickname || user.username;
+                document.getElementById('userScore').textContent = user.total_score;
+                document.getElementById('nicknameInput').value = user.nickname || '';
+                document.getElementById('emailInput').value = user.email || '';
+
+                // 加载队伍信息
+                if (user.team_id) {
+                    loadTeamInfo(user.team_id);
+                } else {
+                    document.getElementById('teamName').textContent = '无队伍';
+                }
+            }
+        } catch (error) {
+            console.error('加载用户数据失败:', error);
+        }
+    }
+
+    // 加载队伍信息
+    async function loadTeamInfo(teamId) {
+        try {
+            const response = await axios.get('/api/rankings');
+            if (response.data.success) {
+                const teams = response.data.team_rankings;
+                const team = teams.find(t => t.id === teamId);
+
+                if (team) {
+                    document.getElementById('teamName').textContent = team.team_name;
+                    document.getElementById('teamRank').textContent = '#' + (teams.findIndex(t => t.id === teamId) + 1);
+                }
+            }
+        } catch (error) {
+            console.error('加载队伍信息失败:', error);
+        }
+    }
+
+    // 加载靶标列表
+    async function loadTargets() {
+        try {
+            const response = await axios.get('/api/targets');
+            if (response.data.success) {
+                const targets = response.data.targets;
+                const targetsList = document.getElementById('targetsList');
+
+                document.getElementById('activeTargets').textContent = targets.length;
+
+                if (targets.length === 0) {
+                    targetsList.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-bullseye mr-2"></i>
+                            当前没有可攻击的靶标
+                        </div>
+                    `;
+                    return;
+                }
+
+                targetsList.innerHTML = targets.map(target => `
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="font-semibold text-white">${target.name}</h4>
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2 py-1 bg-red-600 text-xs rounded">${target.points}分</span>
+                                <span class="px-2 py-1 bg-blue-600 text-xs rounded">${target.ip_address}</span>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-400">${target.description || '暂无描述'}</p>
+                    </div>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('加载靶标列表失败:', error);
+        }
+    }
+
+    // 加载排行榜
+    async function loadRankings() {
+        try {
+            const response = await axios.get('/api/rankings');
+            if (response.data.success) {
+                const teams = response.data.team_rankings;
+                const users = response.data.user_rankings;
+
+                // 获取当前用户和队伍ID
+                const currentTeamId = parseInt('{{ session.get("team_id", 0) }}');
+                const currentUserId = parseInt('{{ session.get("user_id", 0) }}');
+
+                // 更新队伍排行榜
+                const teamRankings = document.getElementById('teamRankings');
+                teamRankings.innerHTML = teams.slice(0, 10).map((team, index) => {
+                    const isCurrentTeam = team.id === currentTeamId;
+                    return `
+                        <div class="flex items-center justify-between p-2 rounded ${isCurrentTeam ? 'bg-red-900' : 'bg-gray-800'}">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-sm font-bold ${index < 3 ? 'text-yellow-400' : 'text-gray-400'}">
+                                    #${index + 1}
+                                </span>
+                                <span class="text-sm text-white">${team.team_name}</span>
+                            </div>
+                            <span class="text-sm text-yellow-400">${team.total_score}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                // 更新个人排行榜
+                const userRankings = document.getElementById('userRankings');
+                userRankings.innerHTML = users.slice(0, 10).map((user, index) => {
+                    const isCurrentUser = user.id === currentUserId;
+                    return `
+                        <div class="flex items-center justify-between p-2 rounded ${isCurrentUser ? 'bg-red-900' : 'bg-gray-800'}">
+                            <div class="flex items-center space-x-2">
+                                <span class="text-sm font-bold ${index < 3 ? 'text-yellow-400' : 'text-gray-400'}">
+                                    #${index + 1}
+                                </span>
+                                <span class="text-sm text-white">${user.nickname || user.username}</span>
+                            </div>
+                            <span class="text-sm text-yellow-400">${user.total_score}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                // 更新个人排名
+                const currentUserIndex = users.findIndex(u => u.id === currentUserId);
+                document.getElementById('personalRank').textContent = currentUserIndex >= 0 ? `#${currentUserIndex + 1}` : '-';
+
+                // 更新已提交Flag数量
+                const currentUser = users.find(u => u.id === currentUserId);
+                if (currentUser) {
+                    document.getElementById('flagsSubmitted').textContent = currentUser.targets_completed || 0;
+                }
+            }
+        } catch (error) {
+            console.error('加载排行榜失败:', error);
+        }
+    }
+
+    // Flag提交
+    // Flag提交
+    document.getElementById('flagSubmitForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const flagInput = document.getElementById('flagInput');
+        const flag = flagInput.value.trim();
+
+        if (!flag) {
+            showNotification('请输入Flag', 'warning');
+            return;
+        }
+
+        if (!flag.match(/^FLAG\{[A-Z0-9]{16}\}$/)) {
+            showNotification('Flag格式不正确，应为 FLAG{16位大写字母和数字}', 'error');
+            return;
+        }
+
+        const submitFlagBtn = document.getElementById('submitFlagBtn');
+        const submitFlagText = document.getElementById('submitFlagText');
+        const submitFlagLoading = document.getElementById('submitFlagLoading');
+
+        // 显示加载状态
+        submitFlagBtn.disabled = true;
+        submitFlagText.classList.add('hidden');
+        submitFlagLoading.classList.remove('hidden');
+
+        try {
+            const response = await axios.post('/api/flag/submit', { flag: flag });
+
+            if (response.data.success) {
+                showNotification(response.data.message, 'success');
+                flagInput.value = '';
+
+                // 添加到提交历史
+                addToSubmissionHistory(flag, true, response.data.points);
+
+                // 刷新数据
+                loadUserData();
+                loadRankings();
+
+                // 关键：更新导航栏积分
+                updateUserScoreFromAPI();
+            } else {
+                showNotification(response.data.message, 'error');
+                addToSubmissionHistory(flag, false, 0);
+            }
+
+        } catch (error) {
+            console.error('提交Flag失败:', error);
+            showNotification('提交请求失败', 'error');
+        } finally {
+            // 恢复按钮状态
+            submitFlagBtn.disabled = false;
+            submitFlagText.classList.remove('hidden');
+            submitFlagLoading.classList.add('hidden');
+        }
+    });
+    // 添加到提交历史
+    function addToSubmissionHistory(flag, isCorrect, points) {
+        const submissionHistory = document.getElementById('submissionHistory');
+
+        // 移除"暂无记录"提示
+        if (submissionHistory.children.length === 1 &&
+            submissionHistory.firstChild.textContent.includes('暂无')) {
+            submissionHistory.innerHTML = '';
+        }
+
+        const historyItem = document.createElement('div');
+        historyItem.className = `flex items-center justify-between p-2 rounded ${isCorrect ? 'bg-green-900' : 'bg-red-900'}`;
+        historyItem.innerHTML = `
+            <div class="flex items-center space-x-2">
+                <i class="fas ${isCorrect ? 'fa-check-circle text-green-400' : 'fa-times-circle text-red-400'}"></i>
+                <span class="text-xs text-gray-300">${flag}</span>
+            </div>
+            <div class="text-right">
+                <span class="text-xs ${isCorrect ? 'text-green-400' : 'text-red-400'}">
+                    ${isCorrect ? `+${points}分` : '错误'}
+                </span>
+                <div class="text-xs text-gray-500">${new Date().toLocaleTimeString()}</div>
+            </div>
+        `;
+
+        submissionHistory.insertBefore(historyItem, submissionHistory.firstChild);
+
+        // 保持最多5条记录
+        while (submissionHistory.children.length > 5) {
+            submissionHistory.removeChild(submissionHistory.lastChild);
+        }
+    }
+
+    // 个人信息更新
+    document.getElementById('profileForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const nickname = document.getElementById('nicknameInput').value.trim();
+        const email = document.getElementById('emailInput').value.trim();
+
+        if (!nickname) {
+            showNotification('请输入昵称', 'warning');
+            return;
+        }
+
+        try {
+            const response = await axios.put('/api/user/profile', {
+                nickname: nickname,
+                email: email
+            });
+
+            if (response.data.success) {
+                showNotification('个人信息更新成功', 'success');
+                loadUserData();
+            } else {
+                showNotification(response.data.message || '更新失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('更新个人信息失败:', error);
+            showNotification('更新请求失败', 'error');
+        }
+    });
+
+    // 队伍重命名
+    document.getElementById('renameTeamForm').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const teamName = document.getElementById('teamNameInput').value.trim();
+
+        if (!teamName) {
+            showNotification('请输入队伍名称', 'warning');
+            return;
+        }
+
+        if (teamName.length < 3) {
+            showNotification('队伍名称至少需要3个字符', 'warning');
+            return;
+        }
+
+        try {
+            const response = await axios.put('/api/team/rename', {
+                team_name: teamName
+            });
+
+            if (response.data.success) {
+                showNotification('队伍名称更新成功', 'success');
+                document.getElementById('teamNameInput').value = '';
+                loadTeamInfo(parseInt('{{ session.get("team_id", 0) }}'));
+                loadRankings();
+            } else {
+                showNotification(response.data.message || '更新失败', 'error');
+            }
+
+        } catch (error) {
+            console.error('重命名队伍失败:', error);
+            showNotification('更新请求失败', 'error');
+        }
+    });
+
+    // 自动刷新Flag输入框焦点
+    document.getElementById('flagInput').addEventListener('input', function () {
+        // 自动转换为大写
+        this.value = this.value.toUpperCase();
+
+        // 自动添加FLAG{}格式
+        if (this.value && !this.value.startsWith('FLAG{')) {
+            this.value = 'FLAG{' + this.value.replace(/[{}]/g, '');
+        }
+
+        // 确保有闭合括号
+        if (this.value.includes('FLAG{') && !this.value.includes('}')) {
+            this.value = this.value + '}';
+        }
+    });
+</script>
+{% endblock %}

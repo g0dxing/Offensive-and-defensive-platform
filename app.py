@@ -1,0 +1,1509 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+实时攻防平台后端主程序
+红黑色调主题，支持管理员和红队成员功能
+明文密码版本
+"""
+
+from flask import Flask, request, jsonify, session, send_from_directory, render_template
+from flask_cors import CORS
+from flask_socketio import SocketIO, emit
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime, timedelta
+import random
+import string
+import json
+import os
+from datetime import datetime
+import threading
+import time
+
+# 配置
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'cyber-range-secret-key-2024'
+#这里设置数据库的帐号密码：mysql+pymysql://[帐号]:[密码]@localhost/cyber_range_platform
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:root@localhost/cyber_range_platform'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+
+# 初始化扩展
+db = SQLAlchemy(app)
+CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
+# 确保上传目录存在
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# 在 app.py 开头添加全局变量
+online_users = {}
+
+
+
+
+# 数据库模型
+class User(db.Model):
+    __tablename__ = 'users'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(100))
+    role = db.Column(db.Enum('admin', 'red_team'), default='red_team')
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
+    nickname = db.Column(db.String(100))
+    avatar = db.Column(db.String(255))
+    total_score = db.Column(db.Integer, default=0)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    team = db.relationship('Team', backref='members')
+
+class Team(db.Model):
+    __tablename__ = 'teams'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    team_name = db.Column(db.String(100), unique=True, nullable=False)
+    team_icon = db.Column(db.String(255))
+    total_score = db.Column(db.Integer, default=0)
+    member_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Competition(db.Model):
+    __tablename__ = 'competitions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    background_story = db.Column(db.Text)
+    theme_image = db.Column(db.String(255))
+    start_time = db.Column(db.DateTime)
+    end_time = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=False)
+    is_ended = db.Column(db.Boolean, default=False)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    updated_at = db.Column(db.TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Target(db.Model):
+    __tablename__ = 'targets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    competition_id = db.Column(db.Integer, db.ForeignKey('competitions.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    flag = db.Column(db.String(255), nullable=False)
+    points = db.Column(db.Integer, default=100)
+    description = db.Column(db.Text)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    
+    competition = db.relationship('Competition', backref='targets')
+
+class FlagSubmission(db.Model):
+    __tablename__ = 'flag_submissions'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    target_id = db.Column(db.Integer, db.ForeignKey('targets.id'), nullable=True)  # 改为 nullable=True
+    submitted_flag = db.Column(db.String(255), nullable=False)
+    is_correct = db.Column(db.Boolean, default=False)
+    points_earned = db.Column(db.Integer, default=0)
+    submitted_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='flag_submissions')
+    target = db.relationship('Target', backref='submissions')
+
+class SystemLog(db.Model):
+    __tablename__ = 'system_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    #log_type = db.Column(db.Enum('login', 'attack', 'system', 'error', 'success', 'warning'), default='system')
+    log_type = db.Column(db.Enum('login', 'attack', 'system', 'error', 'success', 'warning', 'network', 'file_integrity', 'malware_detection'), default='system')
+    source_ip = db.Column(db.String(45))
+    target_ip = db.Column(db.String(45))
+    message = db.Column(db.Text, nullable=False)
+    severity = db.Column(db.Enum('low', 'medium', 'high', 'critical'), default='medium')
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    raw_data = db.Column(db.JSON)
+    created_at = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    
+    team = db.relationship('Team', backref='logs')
+    user = db.relationship('User', backref='logs')
+
+class AttackLog(db.Model):
+    __tablename__ = 'attack_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('teams.id'), nullable=False)
+    source_ip = db.Column(db.String(45), nullable=False)
+    target_ip = db.Column(db.String(45), nullable=False)
+    attack_type = db.Column(db.String(50))
+    traffic_volume = db.Column(db.Integer, default=0)
+    timestamp = db.Column(db.TIMESTAMP, default=datetime.utcnow)
+    
+    team = db.relationship('Team', backref='attack_logs')
+
+# 工具函数
+def generate_random_username(length=8):
+    """生成随机用户名"""
+    return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
+
+def generate_random_password(length=12):
+    """生成随机密码，只包含字母、数字和@."""
+    characters = string.ascii_letters + string.digits + '@.'
+    return ''.join(random.choices(characters, k=length))
+
+def generate_random_flag():
+    """生成随机Flag"""
+    return f"FLAG{{{''.join(random.choices(string.ascii_uppercase + string.digits, k=16))}}}"
+
+# 路由定义
+@app.route('/')
+def index():
+    """主页"""
+    return render_template('index.html')
+
+@app.route('/login')
+def login_page():
+    """登录页面"""
+    return render_template('login.html')
+
+@app.route('/admin')
+def admin_page():
+    """管理员页面"""
+    return render_template('admin.html')
+
+@app.route('/dashboard')
+def dashboard_page():
+    """用户面板页面"""
+    return render_template('dashboard.html')
+
+@app.route('/situation')
+def situation_page():
+    """实时态势页面"""
+    return render_template('situation.html')
+
+# API路由 - 认证相关
+@app.route('/api/login', methods=['POST'])
+def login():
+    """用户登录"""
+    data = request.json
+    username = data.get('username')
+    password = data.get('password')
+    
+    if not username or not password:
+        return jsonify({'success': False, 'message': '用户名和密码不能为空'}), 400
+    
+    user = User.query.filter_by(username=username, is_active=True).first()
+    
+    if not user or user.password != password:
+        # 记录登录失败日志
+        log_entry = SystemLog(
+            log_type='login',
+            message=f'登录失败: 用户名 {username}',
+            severity='medium'
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        return jsonify({'success': False, 'message': '用户名或密码错误'}), 401
+    
+    # 记录登录成功日志
+    log_entry = SystemLog(
+        log_type='login',
+        message=f'用户 {user.username} 登录成功',
+        severity='low',
+        user_id=user.id,
+        team_id=user.team_id
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    session['user_id'] = user.id
+    session['username'] = user.username
+    session['role'] = user.role
+    session['team_id'] = user.team_id
+    
+    return jsonify({
+        'success': True,
+        'message': '登录成功',
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'role': user.role,
+            'team_id': user.team_id,
+            'nickname': user.nickname,
+            'total_score': user.total_score
+        }
+    })
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """用户登出"""
+    session.clear()
+    return jsonify({'success': True, 'message': '登出成功'})
+
+@app.route('/api/check_auth', methods=['GET'])
+def check_auth():
+    """检查用户认证状态"""
+    if 'user_id' not in session:
+        return jsonify({'authenticated': False}), 401
+    
+    user = User.query.get(session['user_id'])
+    if not user or not user.is_active:
+        session.clear()
+        return jsonify({'authenticated': False}), 401
+    
+    # 确保session中的积分是最新的
+    if session.get('total_score') != user.total_score:
+        session['total_score'] = user.total_score
+    
+    return jsonify({
+        'authenticated': True,
+        'user': {
+            'id': user.id,
+            'username': user.username,
+            'role': user.role,
+            'team_id': user.team_id,
+            'nickname': user.nickname,
+            'total_score': user.total_score  # 确保返回最新的积分
+        }
+    })
+# API路由 - 管理员功能
+@app.route('/api/admin/create_teams', methods=['POST'])
+def create_teams():
+    """批量创建队伍和账户"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    data = request.json
+    team_count = data.get('team_count', 1)
+    
+    if not isinstance(team_count, int) or team_count < 1:
+        return jsonify({'success': False, 'message': '队伍数量必须是正整数'}), 400
+    
+    created_teams = []
+    
+    for i in range(team_count):
+        # 创建队伍
+
+
+        # 生成唯一的队伍名称 - 连续编号
+        team_counter = 1
+        while True:
+            team_name = f"RedTeam-{team_counter:03d}"
+            if not Team.query.filter_by(team_name=team_name).first():
+                break
+            team_counter += 1
+
+
+        team = Team(team_name=team_name, team_icon=f"team_icon_{i+1}.png")
+        db.session.add(team)
+        db.session.flush()
+        
+        # 为每个队伍创建3个成员
+        team_members = []
+        for j in range(3):
+            username = generate_random_username()
+            password = generate_random_password()
+            nickname = f"{team_name}-Member{j+1}"
+            
+            user = User(
+                username=username,
+                password=password,  # 明文存储
+                role='red_team',
+                team_id=team.id,
+                nickname=nickname
+            )
+            db.session.add(user)
+            team_members.append({
+                'username': username,
+                'password': password,
+                'nickname': nickname
+            })
+        
+        team.member_count = 3
+        created_teams.append({
+            'team_name': team_name,
+            'members': team_members
+        })
+    
+    db.session.commit()
+    
+    # 记录操作日志
+    log_entry = SystemLog(
+        log_type='system',
+        message=f'管理员批量创建了 {team_count} 个队伍',
+        severity='low',
+        user_id=session['user_id']
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'成功创建 {team_count} 个队伍',
+        'teams': created_teams
+    })
+
+@app.route('/api/admin/delete_all_users', methods=['DELETE'])
+def delete_all_users():
+    """一键删除所有红队账户"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    # 删除所有红队用户和队伍
+    # 先删除相关的外键记录
+    FlagSubmission.query.filter(FlagSubmission.user_id.in_(
+        db.session.query(User.id).filter_by(role='red_team')
+    )).delete(synchronize_session=False)
+
+    SystemLog.query.filter(SystemLog.user_id.in_(
+        db.session.query(User.id).filter_by(role='red_team')
+    )).delete(synchronize_session=False)
+
+    AttackLog.query.filter(AttackLog.team_id.in_(
+        db.session.query(Team.id)
+    )).delete(synchronize_session=False)
+
+    SystemLog.query.filter(SystemLog.team_id.in_(
+        db.session.query(Team.id)
+    )).delete(synchronize_session=False)
+
+    # 再删除用户和队伍
+    User.query.filter_by(role='red_team').delete()
+    Team.query.delete()
+    # deepseek    
+    # # # 重置自增ID
+    # db.session.execute('ALTER TABLE teams AUTO_INCREMENT = 1')
+    # db.session.execute('ALTER TABLE users AUTO_INCREMENT = 1')
+    # deepseek   
+    db.session.commit()
+    
+    # 记录操作日志
+    log_entry = SystemLog(
+        log_type='system',
+        message='管理员一键删除了所有红队账户',
+        severity='medium',
+        user_id=session['user_id']
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': '所有红队账户已删除'
+    })
+
+
+@app.route('/api/admin/all_users', methods=['GET'])
+def get_all_users():
+    """获取所有用户信息（用于关联队伍）"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    users = User.query.all()
+    
+    return jsonify({
+        'success': True,
+        'users': [{
+            'id': user.id,
+            'username': user.username,
+            'team_id': user.team_id,
+            'role': user.role
+        } for user in users]
+    })
+
+@app.route('/api/admin/targets/<int:target_id>/captured_teams', methods=['GET'])
+def get_target_captured_teams(target_id):
+    """获取攻破特定靶标的队伍数量"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    # 查找针对该靶标的正确提交
+    correct_submissions = db.session.query(FlagSubmission, User).join(
+        User, FlagSubmission.user_id == User.id
+    ).filter(
+        FlagSubmission.target_id == target_id,
+        FlagSubmission.is_correct == True
+    ).all()
+    
+    # 获取唯一的队伍ID
+    unique_team_ids = set()
+    for submission, user in correct_submissions:
+        if user.team_id:
+            unique_team_ids.add(user.team_id)
+    
+    return jsonify({
+        'success': True,
+        'target_id': target_id,
+        'captured_teams_count': len(unique_team_ids),
+        'team_ids': list(unique_team_ids)
+    })
+
+
+@app.route('/api/admin/flag_submissions', methods=['GET'])
+def get_flag_submissions():
+    """获取所有Flag提交记录"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    submissions = FlagSubmission.query.all()
+    
+    return jsonify({
+        'success': True,
+        'submissions': [{
+            'id': s.id,
+            'user_id': s.user_id,
+            'target_id': s.target_id,
+            'submitted_flag': s.submitted_flag,
+            'is_correct': s.is_correct,
+            'points_earned': s.points_earned,
+            'submitted_at': s.submitted_at.isoformat()
+        } for s in submissions]
+    })
+
+
+@app.route('/api/admin/teams/<int:team_id>/accounts', methods=['GET'])
+def get_team_accounts(team_id):
+    """获取队伍的所有账户信息"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    team = Team.query.get_or_404(team_id)
+    users = User.query.filter_by(team_id=team_id, role='red_team').all()
+    
+    return jsonify({
+        'success': True,
+        'team': {
+            'id': team.id,
+            'team_name': team.team_name,
+            'member_count': team.member_count
+        },
+        'accounts': [{
+            'id': user.id,
+            'username': user.username,
+            'password': user.password,  # 返回明文密码
+            'nickname': user.nickname,
+            'email': user.email,
+            'total_score': user.total_score,
+            'is_active': user.is_active,
+            'created_at': user.created_at.isoformat()
+        } for user in users]
+    })
+
+#deepseek
+# API路由 - 靶标管理
+@app.route('/api/admin/targets', methods=['GET', 'POST', 'DELETE'])
+def manage_targets():
+    """靶标管理"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    if request.method == 'GET':
+        # 获取所有靶标
+        targets = Target.query.all()
+        return jsonify({
+            'success': True,
+            'targets': [{
+                'id': t.id,
+                'name': t.name,
+                'ip_address': t.ip_address,
+                'flag': t.flag,
+                'points': t.points,
+                'description': t.description,
+                'competition_id': t.competition_id,
+                'competition_name': t.competition.name if t.competition else None,
+                'is_active': t.is_active,
+                'created_at': t.created_at.isoformat()
+            } for t in targets]
+        })
+    
+    elif request.method == 'POST':
+        # 添加靶标
+        data = request.json
+        
+        # 获取任意一个比赛，如果没有就创建一个默认比赛
+        active_competition = Competition.query.filter_by(is_active=True, is_ended=False).first()
+        if not active_competition:
+            # 如果没有活跃比赛，创建一个默认比赛
+            active_competition = Competition(
+                name='默认比赛',
+                description='系统自动创建的默认比赛',
+                is_active=True,
+                is_ended=False,
+                created_by=session['user_id']
+            )
+            db.session.add(active_competition)
+            db.session.flush()  # 获取ID但不提交事务        
+        target = Target(
+            competition_id=active_competition.id,  # 自动关联到活跃比赛
+            name=data.get('name'),
+            ip_address=data.get('ip_address'),
+            flag=data.get('flag', generate_random_flag()),
+            points=data.get('points', 100),
+            description=data.get('description', '')
+        )
+        
+        db.session.add(target)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '靶标添加成功',
+            'target_id': target.id
+        })
+    
+    elif request.method == 'DELETE':
+        # 删除靶标
+        target_id = request.json.get('target_id')
+        target = Target.query.get_or_404(target_id)
+        
+        db.session.delete(target)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '靶标删除成功'
+        })
+
+@app.route('/api/admin/targets/<int:target_id>', methods=['GET', 'PUT'])
+def update_target(target_id):
+    """获取和更新靶标"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    target = Target.query.get_or_404(target_id)
+    
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'target': {
+                'id': target.id,
+                'name': target.name,
+                'ip_address': target.ip_address,
+                'flag': target.flag,
+                'points': target.points,
+                'description': target.description,
+                'is_active': target.is_active,
+                'competition_id': target.competition_id
+            }
+        })
+    
+    elif request.method == 'PUT':
+        data = request.json
+        
+        if 'name' in data:
+            target.name = data['name']
+        if 'ip_address' in data:
+            target.ip_address = data['ip_address']
+        if 'flag' in data:
+            target.flag = data['flag']
+        if 'points' in data:
+            target.points = data['points']
+        if 'description' in data:
+            target.description = data['description']
+        if 'is_active' in data:
+            target.is_active = data['is_active']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '靶标更新成功'
+        })
+
+
+@app.route('/api/home/logs', methods=['GET'])
+def get_home_logs():
+    """获取首页最新日志"""
+    try:
+        print("开始获取首页日志...")
+        
+        # 获取最近10条系统日志
+        logs = SystemLog.query.order_by(SystemLog.created_at.desc()).limit(10).all()
+        
+        print(f"查询到 {len(logs)} 条日志")
+        
+        # 构建响应数据
+        log_data = []
+        for log in logs:
+            log_data.append({
+                'id': log.id,
+                'type': log.log_type,
+                'message': log.message,
+                'severity': log.severity,
+                'created_at': log.created_at.isoformat()
+            })
+        
+        print("日志数据构建完成")
+        
+        return jsonify({
+            'success': True,
+            'logs': log_data
+        })
+        
+    except Exception as e:
+        print(f"获取首页日志失败: {e}")
+        import traceback
+        traceback.print_exc()  # 打印完整错误堆栈
+        return jsonify({'success': False, 'message': '获取日志失败'}), 500
+
+    
+      
+
+
+
+
+@app.route('/api/admin/clear_logs', methods=['POST'])
+def clear_system_logs():
+    """清除系统收集的日志"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    try:
+        # 删除所有系统日志（除了刚创建的操作日志）
+        # 先获取要删除的日志数量
+        logs_to_delete = SystemLog.query.all()
+        deleted_count = len(logs_to_delete)
+        
+        # 批量删除所有日志
+        SystemLog.query.delete()
+        
+        db.session.commit()
+        
+        # 记录操作日志（这条是新创建的，不会被删除）
+        # 使用唯一标识避免被重复检测
+        unique_id = int(time.time())  # 使用时间戳作为唯一标识
+        log_entry = SystemLog(
+            log_type='system',
+            message=f'管理员清除了系统日志 - ID:{unique_id}',
+            severity='medium',
+            user_id=session['user_id']
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功清除 {deleted_count} 条系统日志'
+        })
+        
+    except Exception as e:
+        print(f"清除日志失败: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': '清除日志失败'}), 500
+
+
+
+#添加获取系统日志的API
+@app.route('/api/admin/logs', methods=['GET'])
+def get_system_logs():
+    """获取系统日志"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    log_type = request.args.get('type', '')
+    limit = request.args.get('limit', 50, type=int)
+    
+    query = SystemLog.query
+    
+    if log_type:
+        query = query.filter_by(log_type=log_type)
+    
+    logs = query.order_by(SystemLog.created_at.desc()).limit(limit).all()
+    
+    return jsonify({
+        'success': True,
+        'logs': [{
+            'id': log.id,
+            'type': log.log_type,
+            'message': log.message,
+            'severity': log.severity,
+            'team_id': log.team_id,
+            'user_id': log.user_id,
+            'created_at': log.created_at.isoformat()
+        } for log in logs]
+    })
+
+
+@socketio.on('associate_user')
+def handle_associate_user(data=None):
+    """关联WebSocket连接和用户"""
+    try:
+        user_id = session.get('user_id')
+        if user_id and request.sid in online_users:
+            online_users[request.sid]['user_id'] = user_id
+            print(f'User {user_id} associated with socket {request.sid}')
+    except Exception as e:
+        print(f"关联用户时出错: {e}")
+
+# 修改在线用户统计API
+@app.route('/api/admin/online_users', methods=['GET'])
+def get_online_users():
+    """获取在线用户数（基于WebSocket连接）"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    # 统计有用户ID的连接
+    online_count = len([data for data in online_users.values() if data.get('user_id')])
+    
+    print(f'Online users debug - Total connections: {len(online_users)}, With user_id: {online_count}')
+    
+    return jsonify({
+        'success': True,
+        'online_users': online_count,
+        'total_connections': len(online_users)
+    })
+
+
+@app.route('/api/admin/competitions', methods=['GET', 'POST'])
+def manage_competitions():
+    """比赛管理"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    if request.method == 'GET':
+        competitions = Competition.query.order_by(Competition.created_at.desc()).all()
+        return jsonify({
+            'success': True,
+            'competitions': [{
+                'id': c.id,
+                'name': c.name,
+                'description': c.description,
+                'background_story': c.background_story,
+                'theme_image': c.theme_image,
+                'start_time': c.start_time.isoformat() if c.start_time else None,
+                'end_time': c.end_time.isoformat() if c.end_time else None,
+                'is_active': c.is_active,
+                'is_ended': c.is_ended,
+                'created_at': c.created_at.isoformat()
+            } for c in competitions]
+        })
+    
+    elif request.method == 'POST':
+        data = request.json
+        
+        competition = Competition(
+            name=data.get('name'),
+            description=data.get('description'),
+            background_story=data.get('background_story'),
+            theme_image=data.get('theme_image'),
+            start_time=datetime.fromisoformat(data.get('start_time')) if data.get('start_time') else None,
+            end_time=datetime.fromisoformat(data.get('end_time')) if data.get('end_time') else None,
+            created_by=session['user_id'],
+            is_active=True
+        )
+        
+        db.session.add(competition)
+        db.session.flush()
+        
+        # 添加靶标
+        targets = data.get('targets', [])
+        for target_data in targets:
+            target = Target(
+                competition_id=competition.id,
+                name=target_data.get('name'),
+                ip_address=target_data.get('ip_address'),
+                flag=target_data.get('flag', generate_random_flag()),
+                points=target_data.get('points', 100),
+                description=target_data.get('description', '')
+            )
+            db.session.add(target)
+        
+        db.session.commit()
+        
+        # 记录操作日志
+        log_entry = SystemLog(
+            log_type='system',
+            message=f'管理员创建了比赛: {competition.name}',
+            severity='low',
+            user_id=session['user_id']
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '比赛创建成功',
+            'competition_id': competition.id
+        })
+
+@app.route('/api/admin/competitions/<int:competition_id>/end', methods=['POST'])
+def end_competition(competition_id):
+    """结束比赛"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    competition = Competition.query.get_or_404(competition_id)
+    competition.is_ended = True
+    competition.is_active = False
+    
+    db.session.commit()
+    
+    # 记录操作日志
+    log_entry = SystemLog(
+        log_type='system',
+        message=f'管理员结束了比赛: {competition.name}',
+        severity='medium',
+        user_id=session['user_id']
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': '比赛已结束'
+    })
+
+@app.route('/api/admin/competitions/<int:competition_id>', methods=['DELETE'])
+def delete_competition(competition_id):
+    """删除比赛"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    competition = Competition.query.get_or_404(competition_id)
+    
+    # 先删除相关的靶标
+    Target.query.filter_by(competition_id=competition_id).delete()
+    
+    # 再删除比赛
+    db.session.delete(competition)
+    db.session.commit()
+    
+    # 记录操作日志
+    log_entry = SystemLog(
+        log_type='system',
+        message=f'管理员删除了比赛: {competition.name}',
+        severity='medium',
+        user_id=session['user_id']
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': '比赛删除成功'
+    })
+
+
+
+@app.route('/change_password')
+def change_password_page():
+    """修改密码页面"""
+    return render_template('change_password.html')
+
+@app.route('/api/user/change_password', methods=['POST'])
+def change_password():
+    """修改用户密码"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': '请先登录'}), 401
+    
+    data = request.json
+    old_password = data.get('old_password')
+    new_password = data.get('new_password')
+    
+    if not old_password or not new_password:
+        return jsonify({'success': False, 'message': '原密码和新密码不能为空'}), 400
+    
+    if len(new_password) < 6:
+        return jsonify({'success': False, 'message': '新密码至少需要6位'}), 400
+    
+    user = User.query.get(session['user_id'])
+    
+    if user.password != old_password:
+        return jsonify({'success': False, 'message': '原密码错误'}), 400
+    
+    # 更新密码
+    user.password = new_password
+    db.session.commit()
+    
+    # 记录操作日志
+    log_entry = SystemLog(
+        log_type='system',
+        message=f'用户 {user.username} 修改了密码',
+        severity='low',
+        user_id=user.id,
+        team_id=user.team_id
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': '密码修改成功'
+    })
+
+# API路由 - 用户功能
+@app.route('/api/user/profile', methods=['GET', 'PUT'])
+def user_profile():
+    """用户个人信息管理"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': '请先登录'}), 401
+    
+    user = User.query.get(session['user_id'])
+    
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'nickname': user.nickname,
+                'team_id': user.team_id,
+                'total_score': user.total_score,
+                'created_at': user.created_at.isoformat()
+            }
+        })
+    
+    elif request.method == 'PUT':
+        data = request.json
+        
+        if 'nickname' in data:
+            user.nickname = data['nickname']
+        
+        if 'email' in data:
+            user.email = data['email']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '个人信息更新成功'
+        })
+
+@app.route('/api/team/rename', methods=['PUT'])
+def rename_team():
+    """队伍重命名"""
+    if 'user_id' not in session or session.get('role') != 'red_team':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    user = User.query.get(session['user_id'])
+    if not user.team_id:
+        return jsonify({'success': False, 'message': '您不属于任何队伍'}), 400
+    
+    data = request.json
+    new_name = data.get('team_name')
+    
+    if not new_name or len(new_name) < 3:
+        return jsonify({'success': False, 'message': '队伍名称至少需要3个字符'}), 400
+    
+    team = Team.query.get(user.team_id)
+    existing_team = Team.query.filter_by(team_name=new_name).first()
+    
+    if existing_team and existing_team.id != team.id:
+        return jsonify({'success': False, 'message': '队伍名称已存在'}), 400
+    
+    old_name = team.team_name
+    team.team_name = new_name
+    db.session.commit()
+    
+    # 记录操作日志
+    log_entry = SystemLog(
+        log_type='system',
+        message=f'队伍 {old_name} 更名为 {new_name}',
+        severity='low',
+        user_id=user.id,
+        team_id=team.id
+    )
+    db.session.add(log_entry)
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': '队伍名称更新成功'
+    })
+
+
+
+@app.route('/api/admin/teams/<int:team_id>/captured_targets', methods=['GET'])
+def get_team_captured_targets(team_id):
+    """获取队伍攻下的所有靶标"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    try:
+        # 获取队伍成员
+        team_members = User.query.filter_by(team_id=team_id).all()
+        member_ids = [member.id for member in team_members]
+        
+        print(f"队伍 {team_id} 的成员ID: {member_ids}")  # 调试信息
+        
+        if not member_ids:
+            return jsonify({
+                'success': True,
+                'team_id': team_id,
+                'captured_targets': []
+            })
+        
+        # 查找队伍成员的正确提交
+        correct_submissions = FlagSubmission.query.filter(
+            FlagSubmission.user_id.in_(member_ids),
+            FlagSubmission.is_correct == True
+        ).all()
+        
+        print(f"队伍 {team_id} 的正确提交数量: {len(correct_submissions)}")  # 调试信息
+        
+        captured_targets = []
+        for submission in correct_submissions:
+            target = Target.query.get(submission.target_id)
+            if target:
+                captured_targets.append({
+                    'id': target.id,
+                    'name': target.name,
+                    'ip_address': target.ip_address,
+                    'points': target.points,
+                    'description': target.description
+                })
+                print(f"找到靶标: {target.name}")  # 调试信息
+        
+        # 去重
+        unique_targets = {}
+        for target in captured_targets:
+            if target['id'] not in unique_targets:
+                unique_targets[target['id']] = target
+        
+        print(f"队伍 {team_id} 的攻下靶标数量: {len(unique_targets)}")  # 调试信息
+        
+        return jsonify({
+            'success': True,
+            'team_id': team_id,
+            'captured_targets': list(unique_targets.values())
+        })
+        
+    except Exception as e:
+        print(f"获取队伍靶标失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': '获取数据失败'
+        }), 500  
+
+
+@app.route('/api/flag/submit', methods=['POST'])
+def submit_flag():
+    """提交Flag"""
+    if 'user_id' not in session or session.get('role') != 'red_team':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    user = User.query.get(session['user_id'])
+    
+    # 检查是否有活跃的比赛
+    active_competition = Competition.query.filter_by(is_active=True, is_ended=False).first()
+    if not active_competition:
+        return jsonify({'success': False, 'message': '当前没有活跃的比赛'}), 400
+    
+    data = request.json
+    submitted_flag = data.get('flag', '').strip()
+    
+    if not submitted_flag:
+        return jsonify({'success': False, 'message': 'Flag不能为空'}), 400
+    
+    # 查找匹配的靶标
+    target = Target.query.filter_by(
+        flag=submitted_flag,
+        competition_id=active_competition.id,
+        is_active=True
+    ).first()
+    
+    if not target:
+        # 记录错误的Flag提交 - 这里需要找到对应的target_id
+        # 先尝试通过Flag找到靶标，即使不在当前比赛中
+        any_target = Target.query.filter_by(flag=submitted_flag).first()
+        target_id = any_target.id if any_target else None
+        
+        submission = FlagSubmission(
+            user_id=user.id,
+            target_id=target_id,  # 即使Flag错误也记录target_id
+            submitted_flag=submitted_flag,
+            is_correct=False,
+            points_earned=0
+        )
+        db.session.add(submission)
+        db.session.commit()
+        
+        # 记录攻击日志
+        log_entry = SystemLog(
+            log_type='attack',
+            message=f'用户 {user.username} 提交了错误的Flag: {submitted_flag}',
+            severity='medium',
+            user_id=user.id,
+            team_id=user.team_id
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({'success': False, 'message': 'Flag错误'}), 400
+    
+    # 检查是否已经提交过这个Flag
+    existing_submission = FlagSubmission.query.filter_by(
+        user_id=user.id,
+        target_id=target.id,
+        is_correct=True
+    ).first()
+    
+    if existing_submission:
+        return jsonify({'success': False, 'message': '您已经提交过这个Flag了'}), 400
+    
+    # 创建正确的提交记录
+    submission = FlagSubmission(
+        user_id=user.id,
+        target_id=target.id,  # 确保target_id正确设置
+        submitted_flag=submitted_flag,
+        is_correct=True,
+        points_earned=target.points
+    )
+    db.session.add(submission)
+    
+    # 更新用户积分
+    user.total_score += target.points
+    
+    # 更新队伍积分
+    if user.team_id:
+        team = Team.query.get(user.team_id)
+        team.total_score += target.points
+    
+    # 创建积分记录
+    score_log = SystemLog(
+        log_type='success',
+        message=f'用户 {user.username} 成功提交Flag，获得 {target.points} 分',
+        severity='low',
+        user_id=user.id,
+        team_id=user.team_id
+    )
+    db.session.add(score_log)
+    
+    db.session.commit()
+    
+    # 关键修复：更新session中的积分
+    session['total_score'] = user.total_score
+    
+    # 通过WebSocket广播积分更新
+    broadcast_score_update()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Flag提交成功！获得 {target.points} 分',
+        'points': target.points
+    })
+
+
+
+@app.route('/api/targets', methods=['GET'])
+def get_targets():
+    """获取靶标列表"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': '请先登录'}), 401
+    
+    # 检查是否有活跃的比赛
+    active_competition = Competition.query.filter_by(is_active=True, is_ended=False).first()
+    if not active_competition:
+        return jsonify({'success': True, 'targets': []})
+    
+    targets = Target.query.filter_by(
+        competition_id=active_competition.id,
+        is_active=True
+    ).all()
+    
+    return jsonify({
+        'success': True,
+        'targets': [{
+            'id': t.id,
+            'name': t.name,
+            'ip_address': t.ip_address,
+            'points': t.points,
+            'description': t.description
+        } for t in targets]
+    })
+
+@app.route('/api/rankings', methods=['GET'])
+def get_rankings():
+    """获取排行榜"""
+    # 队伍排行榜
+    teams = Team.query.filter(Team.member_count > 0).order_by(Team.total_score.desc()).all()
+    
+    # 个人排行榜
+    users = User.query.filter_by(role='red_team', is_active=True).order_by(User.total_score.desc()).all()
+    
+    return jsonify({
+        'success': True,
+        'team_rankings': [{
+            'id': t.id,
+            'team_name': t.team_name,
+            'team_icon': t.team_icon,
+            'total_score': t.total_score,
+            'member_count': t.member_count
+        } for t in teams],
+        'user_rankings': [{
+            'id': u.id,
+            'username': u.username,
+            'nickname': u.nickname,
+            'total_score': u.total_score,
+            'team_name': u.team.team_name if u.team else None
+        } for u in users]
+    })
+
+@app.route('/api/admin/reset_scores', methods=['POST'])
+def reset_scores():
+    """重置所有积分"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    try:
+        # 重置所有用户积分
+        User.query.filter_by(role='red_team').update({'total_score': 0})
+        
+        # 重置所有队伍积分
+        Team.query.update({'total_score': 0})
+        
+        # 清空Flag提交记录
+        FlagSubmission.query.delete()
+        
+        db.session.commit()
+        
+        # 记录操作日志
+        log_entry = SystemLog(
+            log_type='system',
+            message='管理员重置了所有积分',
+            severity='high',
+            user_id=session['user_id']
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        # 广播积分更新
+        broadcast_score_update()
+        
+        return jsonify({
+            'success': True,
+            'message': '所有积分已重置'
+        })
+        
+    except Exception as e:
+        print(f"重置积分失败: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': '重置积分失败'}), 500
+
+
+
+@app.route('/api/logs/collect', methods=['POST'])
+def collect_logs():
+    """收集来自Agent的日志数据"""
+    try:
+        data = request.json
+        logs = data.get('logs', [])
+        target_id = data.get('target_id')
+        target_name = data.get('target_name')
+        target_ip = data.get('target_ip')
+        
+        if not logs:
+            return jsonify({'success': False, 'message': '没有日志数据'}), 400
+        
+        saved_logs = []
+        duplicate_count = 0
+        
+        for log_data in logs:
+            # 检查最近1分钟内是否有完全相同的日志
+            recent_duplicate = SystemLog.query.filter(
+                SystemLog.message == log_data.get('message', ''),
+                SystemLog.log_type == log_data.get('type', 'system'),
+                SystemLog.created_at >= datetime.utcnow() - timedelta(minutes=1)
+            ).first()
+            
+            if recent_duplicate:
+                duplicate_count += 1
+                continue
+            
+            # 创建系统日志记录
+            system_log = SystemLog(
+                log_type=log_data.get('type', 'system'),
+                source_ip=log_data.get('details', {}).get('source_ip') or target_ip,
+                target_ip=log_data.get('details', {}).get('target_ip') or target_ip,
+                message=log_data.get('message', '未知日志'),
+                severity=log_data.get('severity', 'medium'),
+                raw_data=log_data.get('details', {})
+            )
+            
+            db.session.add(system_log)
+            saved_logs.append(system_log)
+        
+        db.session.commit()
+        
+        # 通过WebSocket广播日志更新
+        for log in saved_logs:
+            broadcast_log_update({
+                'id': log.id,
+                'type': log.log_type,
+                'message': log.message,
+                'severity': log.severity,
+                'created_at': log.created_at.isoformat()
+            })
+        
+        return jsonify({
+            'success': True,
+            'message': f'成功收集 {len(saved_logs)} 条日志，跳过 {duplicate_count} 条重复日志',
+            'logs_received': len(logs),
+            'logs_saved': len(saved_logs),
+            'duplicates_skipped': duplicate_count
+        })
+        
+    except Exception as e:
+        print(f"日志收集错误: {e}")
+        return jsonify({'success': False, 'message': '日志收集失败'}), 500
+def check_duplicate_log(message, log_type, timestamp, source_ip):
+    """检查是否为重复日志"""
+    try:
+        # 构建查询条件
+        query = SystemLog.query.filter(
+            SystemLog.message == message,
+            SystemLog.log_type == log_type
+        )
+        
+        # 如果有时间戳，检查时间相近的日志（±5秒内）
+        if timestamp:
+            try:
+                log_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                time_window_start = log_time - timedelta(seconds=5)
+                time_window_end = log_time + timedelta(seconds=5)
+                query = query.filter(SystemLog.created_at.between(time_window_start, time_window_end))
+            except:
+                pass
+        
+        # 如果有源IP，也作为检查条件
+        if source_ip:
+            query = query.filter(SystemLog.source_ip == source_ip)
+        
+        # 检查是否存在重复日志
+        duplicate = query.first()
+        return duplicate is not None
+        
+    except Exception as e:
+        print(f"检查重复日志失败: {e}")
+        return False
+
+
+
+# 实时态势相关API
+@app.route('/api/situation/data', methods=['GET'])
+def get_situation_data():
+    """获取实时态势数据"""
+    # 获取最新的比赛信息
+    competition = Competition.query.filter_by(is_active=True).first()
+    
+    # 获取队伍排行榜（前10名）
+    top_teams = Team.query.filter(Team.member_count > 0).order_by(Team.total_score.desc()).limit(10).all()
+    
+    # 获取最新的系统日志（最近50条）
+    recent_logs = SystemLog.query.order_by(SystemLog.created_at.desc()).limit(50).all()
+    
+    # 获取攻击流量数据（最近1小时）
+    one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+    recent_attacks = AttackLog.query.filter(AttackLog.timestamp >= one_hour_ago).all()
+    
+    # 计算统计数据
+    total_attacks = SystemLog.query.filter_by(log_type='attack').count()
+    flags_captured = FlagSubmission.query.filter_by(is_correct=True).count()
+    
+    # 获取靶标数据
+    targets = []
+    if competition:
+        targets = Target.query.filter_by(competition_id=competition.id, is_active=True).all()
+    
+    return jsonify({
+        'success': True,
+        'competition': {
+            'name': competition.name if competition else '无活跃比赛',
+            'is_active': competition.is_active if competition else False
+        } if competition else None,
+        'teams': [{
+            'id': t.id,
+            'team_name': t.team_name,
+            'team_icon': t.team_icon,
+            'total_score': t.total_score,
+            'member_count': t.member_count
+        } for t in top_teams],
+        'targets': [{
+            'id': t.id,
+            'name': t.name,
+            'ip_address': t.ip_address,
+            'points': t.points
+        } for t in targets],
+        'logs': [{
+            'id': l.id,
+            'log_type': l.log_type,
+            'message': l.message,
+            'severity': l.severity,
+            'team_id': l.team_id,
+            'created_at': l.created_at.isoformat()
+        } for l in recent_logs],
+        'attacks': [{
+            'id': a.id,
+            'team_id': a.team_id,
+            'source_ip': a.source_ip,
+            'target_ip': a.target_ip,
+            'attack_type': a.attack_type,
+            'traffic_volume': a.traffic_volume,
+            'timestamp': a.timestamp.isoformat()
+        } for a in recent_attacks],
+        'statistics': {
+            'total_attacks': total_attacks,
+            'flags_captured': flags_captured,
+            'active_teams': len(top_teams)
+        }
+    })
+# WebSocket事件
+
+# connect 事件处理
+@socketio.on('connect')
+def handle_connect():
+    """处理WebSocket连接"""
+    print(f'Client connected: {request.sid}')
+    
+    # 在WebSocket连接时无法直接获取session，需要通过其他方式关联用户
+    # 先记录连接，等用户访问页面时再关联
+    online_users[request.sid] = {
+        'connected_at': datetime.utcnow(),
+        'user_id': None,  # 初始为None
+        'ip_address': request.environ.get('REMOTE_ADDR')
+    }
+    print(f'Online users after connect: {len(online_users)}')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """处理WebSocket断开连接"""
+    print(f'Client disconnected: {request.sid}')
+    # 从在线用户列表移除
+    online_users.pop(request.sid, None)
+
+def broadcast_score_update():
+    """广播积分更新"""
+    # 获取最新的排行榜数据
+    teams = Team.query.filter(Team.member_count > 0).order_by(Team.total_score.desc()).limit(10).all()
+    
+    socketio.emit('score_update', {
+        'teams': [{
+            'id': t.id,
+            'team_name': t.team_name,
+            'total_score': t.total_score
+        } for t in teams]
+    })
+
+def broadcast_log_update(log_data):
+    """广播日志更新"""
+    socketio.emit('log_update', log_data)
+
+
+# 静态文件服务
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('static', filename)
+
+# 创建数据库表
+with app.app_context():
+    db.create_all()
+
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)

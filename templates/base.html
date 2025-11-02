@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}实时攻防平台{% endblock %}</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <style>
+        :root {
+            --primary-red: #dc2626;
+            --dark-red: #991b1b;
+            --light-red: #ef4444;
+            --primary-black: #0f0f0f;
+            --secondary-black: #1a1a1a;
+            --accent-gold: #f59e0b;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--primary-black) 0%, var(--secondary-black) 100%);
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .cyber-border {
+            border: 1px solid var(--primary-red);
+            box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+        }
+
+        .cyber-glow {
+            box-shadow: 0 0 20px rgba(220, 38, 38, 0.5);
+        }
+
+        .cyber-button {
+            background: linear-gradient(45deg, var(--primary-red), var(--dark-red));
+            border: 1px solid var(--light-red);
+            transition: all 0.3s ease;
+        }
+
+        .cyber-button:hover {
+            background: linear-gradient(45deg, var(--dark-red), var(--primary-red));
+            box-shadow: 0 0 15px rgba(220, 38, 38, 0.6);
+        }
+
+        .cyber-input {
+            background: rgba(26, 26, 26, 0.8);
+            border: 1px solid var(--primary-red);
+            color: #ffffff;
+        }
+
+        .cyber-input:focus {
+            outline: none;
+            box-shadow: 0 0 10px rgba(220, 38, 38, 0.4);
+        }
+
+        .cyber-card {
+            background: rgba(26, 26, 26, 0.9);
+            border: 1px solid var(--primary-red);
+            backdrop-filter: blur(10px);
+        }
+
+        .cyber-header {
+            background: linear-gradient(90deg, var(--primary-black) 0%, var(--dark-red) 50%, var(--primary-black) 100%);
+            border-bottom: 2px solid var(--primary-red);
+        }
+
+        .cyber-nav-item {
+            color: #ffffff;
+            transition: all 0.3s ease;
+        }
+
+        .cyber-nav-item:hover {
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+
+        .cyber-nav-item.active {
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .score-highlight {
+            background: linear-gradient(45deg, var(--accent-gold), #fbbf24);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: bold;
+        }
+
+        .danger-text {
+            color: var(--light-red);
+            text-shadow: 0 0 5px rgba(239, 68, 68, 0.5);
+        }
+
+        .success-text {
+            color: #10b981;
+            text-shadow: 0 0 5px rgba(16, 185, 129, 0.5);
+        }
+
+        .warning-text {
+            color: var(--accent-gold);
+            text-shadow: 0 0 5px rgba(245, 158, 11, 0.5);
+        }
+
+        .log-entry {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            padding: 4px 8px;
+            margin: 2px 0;
+            border-left: 3px solid var(--primary-red);
+            background: rgba(26, 26, 26, 0.5);
+        }
+
+        .log-entry.login {
+            border-left-color: #3b82f6;
+        }
+
+        .log-entry.attack {
+            border-left-color: var(--light-red);
+        }
+
+        .log-entry.success {
+            border-left-color: #10b981;
+        }
+
+        .log-entry.error {
+            border-left-color: var(--accent-gold);
+        }
+
+        .log-entry.warning {
+            border-left-color: #f59e0b;
+        }
+    </style>
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body class="min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="cyber-header shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div
+                        class="w-10 h-10 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-shield-alt text-white text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-white">实时攻防平台</h1>
+                        <p class="text-xs text-gray-300">Cyber Range Platform</p>
+                    </div>
+                </div>
+
+                <!-- 导航菜单 -->
+                <div class="hidden md:flex items-center space-x-8">
+                    <a href="/" class="cyber-nav-item">
+                        <i class="fas fa-home mr-2"></i>首页
+                    </a>
+                    <a href="/situation" class="cyber-nav-item">
+                        <i class="fas fa-chart-line mr-2"></i>实时态势
+                    </a>
+                    {% if session.get('role') == 'admin' %}
+                    <a href="/admin" class="cyber-nav-item">
+                        <i class="fas fa-cog mr-2"></i>管理面板
+                    </a>
+                    {% elif session.get('username') %}
+                    <a href="/dashboard" class="cyber-nav-item">
+                        <i class="fas fa-user mr-2"></i>用户面板
+                    </a>
+                    {% endif %}
+                </div>
+
+                <!-- 用户信息 -->
+                <div class="flex items-center space-x-4">
+                    {% if session.get('username') %}
+                    <div class="flex items-center space-x-2">
+                        <div
+                            class="w-8 h-8 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-full flex items-center justify-center">
+                            <i class="fas fa-user text-white text-sm"></i>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm font-medium text-white">{{ session.get('nickname',
+                                session.get('username')) }}</p>
+                            <p class="text-xs text-gray-300">
+                                {% if session.get('role') == 'admin' %}管理员{% endif %}
+                            </p>
+                        </div>
+                        <button onclick="logout()" class="cyber-button px-3 py-1 rounded text-sm">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </button>
+                        <a href="/change_password" class="cyber-button py-1 px-1 rounded-lg font-semibold">
+                            <i class="fas fa-key mr-2"></i>修改密码
+                        </a>
+                    </div>
+                    {% else %}
+                    <a href="/login" class="cyber-button px-4 py-2 rounded">
+                        <i class="fas fa-sign-in-alt mr-2"></i>登录
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <main class="flex-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="cyber-header mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="text-center">
+                <p class="text-gray-300 text-sm">
+                    © 2024 实时攻防平台 - <span class="text-red-400">Cyber Range Platform</span>
+                </p>
+                <p class="text-gray-400 text-xs mt-1">
+                    专为网络安全攻防演练设计 | Designed for Cyber Security Training
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.5.0/axios.min.js"></script>
+
+    <script>
+        // 全局变量
+        let socket = null;
+
+        // 工具函数
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${type === 'success' ? 'bg-green-600' :
+                type === 'error' ? 'bg-red-600' : type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'} text-white`;
+            notification.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' :
+                    type === 'error' ? 'fa-exclamation-circle' :
+                        type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'} mr-2"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleString('zh-CN');
+        }
+
+        // 认证相关函数
+        async function logout() {
+            try {
+                await axios.post('/api/logout');
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = '/';
+            }
+        }
+
+        async function checkAuth() {
+            try {
+                const response = await axios.get('/api/check_auth');
+                if (response.data.authenticated && socket) {
+                    socket.emit('associate_user');
+                    console.log('User authenticated, sending associate event');
+                }
+                return response.data;
+            } catch (error) {
+                return { authenticated: false };
+            }
+        }
+
+        // WebSocket连接
+        function connectWebSocket() {
+            try {
+                socket = io({
+                    transports: ['websocket', 'polling'],
+                    upgrade: true,
+                    timeout: 10000
+                });
+
+                socket.on('connect', () => {
+                    console.log('WebSocket connected');
+                    updateWebSocketStatus(true);
+
+                    // 连接成功后立即发送用户信息
+                    sendUserInfo();
+                });
+
+                socket.on('disconnect', (reason) => {
+                    console.log('WebSocket disconnected:', reason);
+                    updateWebSocketStatus(false);
+                    setTimeout(connectWebSocket, 3000);
+                });
+
+                socket.on('connect_error', (error) => {
+                    console.log('WebSocket connection error:', error);
+                    updateWebSocketStatus(false);
+                });
+
+                socket.on('score_update', (data) => {
+                    console.log('Score update received:', data);
+                    window.dispatchEvent(new CustomEvent('scoreUpdate', { detail: data }));
+                });
+
+                socket.on('log_update', (data) => {
+                    console.log('Log update received:', data);
+                    window.dispatchEvent(new CustomEvent('logUpdate', { detail: data }));
+                });
+
+            } catch (error) {
+                console.error('WebSocket initialization error:', error);
+                updateWebSocketStatus(false);
+            }
+        }
+
+        // 发送用户信息到WebSocket
+// 修改后：
+function sendUserInfo() {
+    checkAuth().then(authData => {
+        if (authData.authenticated && socket) {
+            // 发送关联用户事件
+            socket.emit('associate_user', {});
+            console.log('Associate user event sent:', authData.user.id);
+        }
+    });
+}
+
+        // 修改页面加载逻辑
+        document.addEventListener('DOMContentLoaded', function () {
+            connectWebSocket();
+
+            // 每5秒检查一次并发送用户信息（确保关联成功）
+            setInterval(sendUserInfo, 5000);
+        });
+
+
+
+        function updateWebSocketStatus(connected) {
+            const statusElement = document.getElementById('websocketStatus');
+            if (statusElement) {
+                if (connected) {
+                    statusElement.innerHTML = '<i class="fas fa-circle mr-1"></i>已连接';
+                    statusElement.className = 'text-green-400';
+                } else {
+                    statusElement.innerHTML = '<i class="fas fa-circle mr-1"></i>断开';
+                    statusElement.className = 'text-red-400';
+                }
+            }
+        }
+
+        // 页面初始化
+        document.addEventListener('DOMContentLoaded', function () {
+            connectWebSocket();
+
+            // 页面加载后关联用户
+            setTimeout(() => {
+                checkAuth().then(authData => {
+                    if (authData.authenticated && socket) {
+                        socket.emit('associate_user');
+                    }
+                });
+            }, 500);
+
+            // 监听全局事件
+            window.addEventListener('scoreUpdate', function (event) {
+                console.log('Score update event received');
+            });
+
+            window.addEventListener('logUpdate', function (event) {
+                console.log('Log update event received');
+            });
+        });
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

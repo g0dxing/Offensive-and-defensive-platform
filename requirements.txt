@@ -1,0 +1,38 @@
+# Web Framework
+Flask==2.3.3
+Flask-CORS==4.0.0
+Flask-SocketIO==5.3.4
+Flask-SQLAlchemy==3.0.5
+
+# Database
+PyMySQL==1.1.0
+SQLAlchemy==2.0.21
+
+# Authentication & Security
+Werkzeug==2.3.7
+
+# Real-time Communication
+python-socketio==5.9.0
+eventlet==0.33.3
+
+# Monitoring & Logging
+psutil==5.9.5
+watchdog==3.0.0
+
+# HTTP Client
+requests==2.31.0
+
+# Date & Time
+python-dateutil==2.8.2
+
+# JSON Handling
+jsonschema==4.19.1
+
+# Environment Variables
+python-dotenv==1.0.0
+
+# Development Tools (optional)
+pytest==7.4.2
+pytest-flask==1.2.0
+black==23.9.1
+flake8==6.1.0

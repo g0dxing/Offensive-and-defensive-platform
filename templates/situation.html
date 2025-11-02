@@ -1,0 +1,1169 @@
+{% extends "base.html" %}
+
+{% block title %}实时态势 - 实时攻防平台{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* 信息面板样式 */
+    .info-panel {
+        background: rgba(26, 26, 26, 0.95);
+        backdrop-filter: blur(10px);
+        border: 2px solid #dc2626;
+        box-shadow: 0 0 30px rgba(220, 38, 38, 0.5);
+    }
+
+    .info-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #374151;
+    }
+
+    .info-label {
+        color: #9ca3af;
+        font-weight: 500;
+    }
+
+    .info-value {
+        color: #ffffff;
+        font-weight: 600;
+    }
+
+    .attack-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    /* 态势大屏专用样式 */
+    .situation-header {
+        background: linear-gradient(90deg, #0f0f0f 0%, #dc2626 50%, #0f0f0f 100%);
+        border-bottom: 3px solid #dc2626;
+        box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+    }
+
+    .attack-flow {
+        position: relative;
+        height: 400px;
+        background: radial-gradient(circle at center, rgba(220, 38, 38, 0.1) 0%, transparent 70%);
+        border: 1px solid #dc2626;
+        border-radius: 8px;
+        overflow: auto;
+        cursor: grab;
+    }
+
+    .team-node {
+        position: absolute;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(45deg, #dc2626, #991b1b);
+        border: 3px solid #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+        text-align: center;
+        box-shadow: 0 0 20px rgba(220, 38, 38, 0.6);
+        animation: pulse 2s infinite;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        z-index: 10;
+    }
+
+    .team-node:hover {
+        transform: scale(1.1);
+        box-shadow: 0 0 25px rgba(220, 38, 38, 0.8);
+    }
+
+    .target-node {
+        position: absolute;
+        width: 80px;
+        height: 60px;
+        border-radius: 6px;
+        background: linear-gradient(45deg, #1f2937, #374151);
+        border: 2px solid #dc2626;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 9px;
+        text-align: center;
+        box-shadow: 0 0 15px rgba(220, 38, 38, 0.4);
+        line-height: 1.2;
+        padding: 4px;
+        word-break: break-word;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        z-index: 10;
+    }
+
+    .target-node:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 20px rgba(220, 38, 38, 0.6);
+    }
+
+    .attack-line {
+        position: absolute;
+        height: 3px;
+        background: linear-gradient(90deg,
+                transparent 0%,
+                #ef4444 20%,
+                #dc2626 50%,
+                #ef4444 80%,
+                transparent 100%);
+        animation: flow 1.5s linear infinite;
+        box-shadow: 0 0 8px rgba(220, 38, 38, 0.6);
+        transform-origin: 0 0;
+        border-radius: 2px;
+        z-index: 5;
+    }
+
+    @keyframes flow {
+        0% {
+            background-position: -100% 0;
+            opacity: 0.8;
+        }
+
+        50% {
+            opacity: 1;
+        }
+
+        100% {
+            background-position: 200% 0;
+            opacity: 0.8;
+        }
+    }
+
+    /* 添加粒子流动效果 */
+    .flow-particle {
+        position: absolute;
+        width: 6px;
+        height: 6px;
+        background: #ef4444;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #ef4444, 0 0 20px #dc2626;
+        animation: particleFlow 2s linear infinite;
+        z-index: 6;
+    }
+
+    @keyframes particleFlow {
+        0% {
+            transform: translateY(-10px);
+            opacity: 0;
+        }
+
+        10% {
+            opacity: 1;
+        }
+
+        90% {
+            opacity: 1;
+        }
+
+        100% {
+            transform: translateY(calc(100% + 10px));
+            opacity: 0;
+        }
+    }
+
+    .ranking-item {
+        background: linear-gradient(90deg, rgba(31, 41, 55, 0.8), rgba(55, 65, 81, 0.8));
+        border-left: 4px solid #dc2626;
+        transition: all 0.3s ease;
+    }
+
+    .ranking-item:hover {
+        background: linear-gradient(90deg, rgba(55, 65, 81, 0.9), rgba(75, 85, 99, 0.9));
+        border-left-color: #ef4444;
+        transform: translateX(5px);
+    }
+
+    .log-stream {
+        background: rgba(0, 0, 0, 0.9);
+        border: 1px solid #dc2626;
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        line-height: 1.4;
+        max-height: 400px;
+        /* 增加高度 */
+        height: 400px;
+        /* 固定高度 */
+        overflow-y: auto;
+    }
+
+    .log-entry {
+        padding: 2px 8px;
+        /* 减小上下内边距 */
+        margin: 0.5px 0;
+        /* 减小上下外边距 */
+        border-left: 3px solid;
+        animation: fadeIn 0.3s ease-out;
+        line-height: 1.2;
+        /* 减小行高 */
+        font-size: 10px;
+        /* 可选：减小字体大小 */
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* 或者完全移除动画，使用这个： */
+    /*
+.log-entry {
+    padding: 4px 8px;
+    margin: 1px 0;
+    border-left: 3px solid;
+    /* 无动画 */
+    /* }*/
+    @keyframes slideIn {
+        from {
+            transform: translateX(-100%);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .log-entry.login {
+        border-left-color: #3b82f6;
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .log-entry.attack {
+        border-left-color: #dc2626;
+        background: rgba(220, 38, 38, 0.1);
+    }
+
+    .log-entry.success {
+        border-left-color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .log-entry.error {
+        border-left-color: #f59e0b;
+        background: rgba(245, 158, 11, 0.1);
+    }
+
+    .log-entry.warning {
+        border-left-color: #8b5cf6;
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .competition-banner {
+        background: linear-gradient(45deg, #dc2626, #991b1b, #dc2626);
+        background-size: 200% 200%;
+        animation: gradientShift 3s ease infinite;
+    }
+
+    @keyframes gradientShift {
+        0% {
+            background-position: 0% 50%;
+        }
+
+        50% {
+            background-position: 100% 50%;
+        }
+
+        100% {
+            background-position: 0% 50%;
+        }
+    }
+
+/* 高危告警样式 */
+.high-risk-alert {
+    background: linear-gradient(45deg, #991b1b, #dc2626, #991b1b);
+    border: 2px solid #fecaca;
+    border-radius: 8px;
+    padding: 8px 16px;
+    box-shadow: 0 0 20px rgba(220, 38, 38, 0.6);
+    animation: alertPulse 2s infinite;
+}
+
+@keyframes alertPulse {
+    0% {
+        box-shadow: 0 0 10px rgba(220, 38, 38, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(220, 38, 38, 0.9);
+    }
+    100% {
+        box-shadow: 0 0 10px rgba(220, 38, 38, 0.6);
+    }
+}
+
+
+
+    .pulse-glow {
+        animation: pulseGlow 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulseGlow {
+        from {
+            box-shadow: 0 0 20px rgba(220, 38, 38, 0.5);
+        }
+
+        to {
+            box-shadow: 0 0 30px rgba(220, 38, 38, 0.8), 0 0 40px rgba(220, 38, 38, 0.3);
+        }
+    }
+
+    .data-counter {
+        font-family: 'Courier New', monospace;
+        font-size: 2rem;
+        font-weight: bold;
+        text-shadow: 0 0 10px rgba(220, 38, 38, 0.8);
+    }
+
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+        animation: pulse 2s infinite;
+    }
+
+    .status-online {
+        background-color: #10b981;
+    }
+
+    .status-offline {
+        background-color: #ef4444;
+    }
+
+    .status-warning {
+        background-color: #f59e0b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 信息显示面板 -->
+<div id="infoPanel"
+    class="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 cyber-card p-6 rounded-lg z-50 hidden max-w-md w-full info-panel">
+    <div class="flex justify-between items-center mb-4">
+        <h3 id="infoTitle" class="text-xl font-bold text-white">详细信息</h3>
+        <button onclick="closeInfoPanel()" class="text-gray-400 hover:text-white">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div id="infoContent" class="space-y-4">
+        <!-- 动态内容 -->
+    </div>
+</div>
+
+<!-- 点击遮罩 -->
+<div id="overlay" class="fixed inset-0 bg-black bg-opacity-70 z-40 hidden" onclick="closeInfoPanel()"></div>
+
+<!-- 全屏态势大屏 -->
+<div class="min-h-screen bg-black">
+    <!-- 顶部横幅 - 比赛名称 -->
+    <header class="competition-banner py-4 px-6">
+        <div class="max-w-full mx-auto">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-shield-alt text-white text-2xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-white" id="competitionName">
+                            实时攻防演练
+                        </h1>
+                        <p class="text-red-200 text-sm" id="competitionStatus">
+                            <span class="status-indicator status-online"></span>
+                            比赛进行中
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 实时统计 -->
+                <div class="flex items-center space-x-8 text-white">
+                    <div class="text-center">
+                        <div class="data-counter text-red-400" id="activeTeams">0</div>
+                        <div class="text-sm text-red-200">活跃队伍</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="data-counter text-yellow-400" id="totalAttacks">0</div>
+                        <div class="text-sm text-yellow-200">攻击次数</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="data-counter text-green-400" id="flagsCaptured">0</div>
+                        <div class="text-sm text-green-200">Flag获取</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="data-counter text-blue-400" id="systemTime">--:--:--</div>
+                        <div class="text-sm text-blue-200">系统时间</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要内容区域 -->
+    <main class="flex-1 p-6">
+        <div class="grid grid-cols-12 gap-6 h-full">
+            <!-- 左侧攻击流量图 (2/3) -->
+            <div class="col-span-8">
+                <div class="cyber-card p-4 rounded-lg h-full">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-bold text-white">
+                            <i class="fas fa-project-diagram mr-2"></i>攻击流量图
+                        </h2>
+                        <div class="flex items-center space-x-2">
+                            <div class="pulse-glow w-3 h-3 bg-red-400 rounded-full"></div>
+                            <span class="text-sm text-gray-300">实时更新</span>
+                        </div>
+                    </div>
+
+                    <!-- 网络拓扑图 -->
+                    <div class="attack-flow relative" id="attackFlow">
+                        <!-- 动态生成的节点和攻击线会在这里显示 -->
+                    </div>
+
+                    <!-- 图例 -->
+                    <div class="flex items-center justify-center space-x-6 mt-4 text-sm">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-red-600 rounded-full"></div>
+                            <span class="text-gray-300">攻击方</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-4 h-4 bg-gray-600 rounded"></div>
+                            <span class="text-gray-300">靶标 (<span id="targetCount">0</span>)</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-1 bg-gradient-to-r from-red-500 to-red-300"></div>
+                            <span class="text-gray-300">攻击流量</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧排行榜 (1/3) -->
+            <div class="col-span-4">
+                <div class="cyber-card p-4 rounded-lg h-full">
+                    <h2 class="text-xl font-bold text-white mb-4">
+                        <i class="fas fa-trophy mr-2"></i>实时排行榜
+                    </h2>
+
+                    <div id="rankingsList" class="space-y-2 max-h-96 overflow-y-auto">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            正在加载排行榜...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 底部日志流 -->
+            <div class="col-span-12">
+                <div class="cyber-card p-4 rounded-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-xl font-bold text-white">
+                            <i class="fas fa-terminal mr-2"></i>实时日志流
+                        </h2>
+                        <div class="flex items-center space-x-4">
+                            <!-- 高危告警显示区域 -->
+<div id="highRiskAlert" class="hidden cursor-pointer" onclick="clearAlert()" title="点击清除告警">
+    <div class="high-risk-alert flex items-center justify-center space-x-3">
+        <i class="fas fa-exclamation-triangle text-red-100 animate-pulse text-lg"></i>
+        <span class="text-white font-bold text-sm tracking-wider" id="alertMessage">高危告警</span>
+    </div>
+</div>
+
+                            <div class="flex items-center space-x-2">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                <span class="text-sm text-gray-300">实时</span>
+                            </div>
+                            <button onclick="clearLogs()" class="text-red-400 hover:text-red-300 text-sm">
+                                <i class="fas fa-broom mr-1"></i>清空
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="logStream" class="log-stream p-4 rounded">
+                        <div class="text-center text-gray-400 py-8">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            正在连接日志流...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 浮动控制面板 -->
+    <div class="fixed bottom-6 right-6 cyber-card p-4 rounded-lg">
+        <div class="flex items-center space-x-4">
+            <button onclick="toggleFullscreen()" class="cyber-button px-3 py-2 rounded text-sm" title="全屏模式">
+                <i class="fas fa-expand"></i>
+            </button>
+            <button onclick="refreshData()" class="cyber-button px-3 py-2 rounded text-sm" title="刷新数据">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button onclick="toggleAutoScroll()" class="cyber-button px-3 py-2 rounded text-sm" title="自动滚动"
+                id="autoScrollBtn">
+                <i class="fas fa-play"></i>
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 全局变量
+    let autoScrollEnabled = true;
+    let logCounter = 0;
+    let currentTeams = [];
+    let currentTargets = [];
+
+    // 信息面板控制函数
+    function showInfoPanel() {
+        document.getElementById('infoPanel').classList.remove('hidden');
+        document.getElementById('overlay').classList.remove('hidden');
+    }
+
+    function closeInfoPanel() {
+        document.getElementById('infoPanel').classList.add('hidden');
+        document.getElementById('overlay').classList.add('hidden');
+    }
+
+    // 显示红队信息
+    async function showTeamInfo(team, attackLogs = []) {
+        document.getElementById('infoTitle').textContent = `队伍信息 - ${team.team_name}`;
+
+        // 计算排名
+        const teamRank = currentTeams.findIndex(t => t.id === team.id) + 1;
+        const rankText = teamRank > 0 ? `#${teamRank}` : '未知';
+
+        // 获取已攻下的靶标
+        const capturedTargets = await getCapturedTargets(team.id);
+
+        console.log('队伍靶标数据:', capturedTargets); // 调试信息
+
+        const content = `
+        <div class="space-y-3">
+            <div class="info-item">
+                <span class="info-label">队伍名称:</span>
+                <span class="info-value">${team.team_name}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">成员数量:</span>
+                <span class="info-value">${team.member_count} 人</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">当前积分:</span>
+                <span class="info-value text-yellow-400">${team.total_score}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">排名:</span>
+                <span class="info-value">${rankText}</span>
+            </div>
+            ${capturedTargets.length > 0 ? `
+            <div class="mt-4">
+                <h4 class="text-green-400 font-semibold mb-2">已攻下靶标 (${capturedTargets.length}个)</h4>
+                <div class="attack-list space-y-2">
+                    ${capturedTargets.map(target => `
+                        <div class="bg-green-900 p-2 rounded text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-white font-semibold">${target.name}</span>
+                                <span class="text-yellow-400">+${target.points}分</span>
+                            </div>
+                            <div class="text-green-300 text-xs">IP: ${target.ip_address}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            ` : '<div class="text-gray-400 text-center py-4">暂未攻下任何靶标</div>'}
+        </div>
+    `;
+
+        document.getElementById('infoContent').innerHTML = content;
+        showInfoPanel();
+    }
+
+
+    // 获取队伍已攻下的靶标
+    async function getCapturedTargets(teamId) {
+        try {
+            const response = await axios.get(`/api/admin/teams/${teamId}/captured_targets`);
+            if (response.data.success) {
+                return response.data.captured_targets;
+            }
+        } catch (error) {
+            console.error('获取已攻下靶标失败:', error);
+        }
+        return [];
+    }
+
+
+    // 显示靶标信息
+    async function showTargetInfo(target, attackLogs = []) {
+        document.getElementById('infoTitle').textContent = `靶标信息 - ${target.name}`;
+
+        // 获取攻破此靶标的队伍数量
+        const capturedTeamsCount = await getTargetCapturedTeams(target.id);
+
+        const content = `
+    <div class="space-y-3">
+        <div class="info-item">
+            <span class="info-label">靶标名称:</span>
+            <span class="info-value">${target.name}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">IP地址:</span>
+            <span class="info-value text-red-400">${target.ip_address}</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">分值:</span>
+            <span class="info-value text-yellow-400">${target.points} 分</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">状态:</span>
+            <span class="info-value text-green-400">在线</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">被攻破情况:</span>
+            <span class="info-value ${capturedTeamsCount > 0 ? 'text-red-400' : 'text-green-400'}">
+                ${capturedTeamsCount > 0 ? `已被 ${capturedTeamsCount} 个队伍攻破` : '未被攻破'}
+            </span>
+        </div>
+        ${target.description ? `
+        <div class="info-item">
+            <span class="info-label">描述:</span>
+            <span class="info-value text-sm">${target.description}</span>
+        </div>
+        ` : ''}
+        ${attackLogs.length > 0 ? `
+        <div class="mt-4">
+            <h4 class="text-red-400 font-semibold mb-2">被攻击记录 (${attackLogs.length}次)</h4>
+            <div class="attack-list space-y-2">
+                ${attackLogs.slice(0, 10).map(log => `
+                    <div class="bg-gray-800 p-2 rounded text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-300">${log.source_ip || '未知来源'}</span>
+                            <span class="text-red-400">${new Date(log.timestamp).toLocaleTimeString('zh-CN')}</span>
+                        </div>
+                        <div class="text-gray-400 text-xs">${log.attack_type || '未知类型'} - 流量: ${log.traffic_volume || 0}KB</div>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+        ` : '<div class="text-gray-400 text-center py-4">暂无详细攻击日志</div>'}
+    </div>
+    `;
+
+        document.getElementById('infoContent').innerHTML = content;
+        showInfoPanel();
+    }
+
+
+
+    // 获取攻破特定靶标的队伍数量
+    // 获取攻破特定靶标的队伍数量
+    async function getTargetCapturedTeams(targetId) {
+        try {
+            const response = await axios.get(`/api/admin/targets/${targetId}/captured_teams`);
+            if (response.data.success) {
+                return response.data.captured_teams_count;
+            }
+        } catch (error) {
+            console.error('获取靶标攻破队伍数量失败:', error);
+        }
+        return 0;
+    }
+
+    // 获取攻击日志数据
+    // 获取攻击日志数据
+    async function getTeamAttackLogs(teamId) {
+        try {
+            const response = await axios.get(`/api/admin/logs?type=attack&limit=50`);
+            if (response.data.success) {
+                return response.data.logs.filter(log =>
+                    (log.team_id === teamId || log.message.includes('RedTeam')) &&
+                    log.target_ip && // 确保有目标IP
+                    log.timestamp && // 确保有时间戳
+                    !isNaN(new Date(log.timestamp).getTime()) // 确保时间戳有效
+                );
+            }
+        } catch (error) {
+            console.error('获取攻击日志失败:', error);
+        }
+        return [];
+    }
+    async function getTargetAttackLogs(targetIP) {
+        try {
+            const response = await axios.get(`/api/admin/logs?type=attack&limit=50`);
+            if (response.data.success) {
+                return response.data.logs.filter(log =>
+                    log.message.includes(targetIP) ||
+                    (log.target_ip === targetIP)
+                );
+            }
+        } catch (error) {
+            console.error('获取攻击日志失败:', error);
+        }
+        return [];
+    }
+
+
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadSituationData();
+        updateSystemTime();
+        initDragFlow();
+        updateFlowStyle();
+        startLogStream();
+
+        setInterval(updateSystemTime, 1000);
+        setInterval(loadSituationData, 5000);
+        setInterval(simulateAttackFlow, 3000);
+
+        window.addEventListener('scoreUpdate', function (event) {
+            updateRankings(event.detail.teams);
+        });
+
+        window.addEventListener('logUpdate', function (event) {
+            addLogEntry(event.detail);
+        });
+    });
+
+    async function loadSituationData() {
+        try {
+            const response = await axios.get('/api/situation/data');
+            if (response.data.success) {
+                const data = response.data;
+
+                if (data.competition) {
+                    document.getElementById('competitionName').textContent = data.competition.name;
+                    const statusElement = document.getElementById('competitionStatus');
+                    if (data.competition.is_active) {
+                        statusElement.innerHTML = '<span class="status-indicator status-online"></span>比赛进行中';
+                    } else {
+                        statusElement.innerHTML = '<span class="status-indicator status-offline"></span>比赛未开始';
+                    }
+                }
+
+                document.getElementById('activeTeams').textContent = data.teams ? data.teams.length : 0;
+                document.getElementById('totalAttacks').textContent = data.statistics ? data.statistics.total_attacks : 0;
+                document.getElementById('flagsCaptured').textContent = data.statistics ? data.statistics.flags_captured : 0;
+
+                currentTeams = data.teams || [];
+                currentTargets = data.targets || [];
+
+                updateAttackFlow(currentTeams, currentTargets);
+                updateRankings(currentTeams);
+
+                // 修改：只在第一次加载时添加历史日志，后续只通过WebSocket接收新日志
+                if (!window.initialLogsLoaded) {
+                    if (data.logs) {
+                        data.logs.forEach(log => {
+                            if (log.type === 'attack' && log.message) {
+                                extractTargetIPFromLog(log.message);
+                            }
+                            addLogEntry(log);
+                        });
+                    }
+                    window.initialLogsLoaded = true;
+                }
+            }
+        } catch (error) {
+            console.error('加载态势数据失败:', error);
+        }
+    }
+
+
+    function updateRankings(teams) {
+        const rankingsList = document.getElementById('rankingsList');
+        if (!teams || teams.length === 0) {
+            rankingsList.innerHTML = '<div class="text-center text-gray-400 py-8"><i class="fas fa-trophy mr-2"></i>暂无队伍数据</div>';
+            return;
+        }
+
+        rankingsList.innerHTML = teams.slice(0, 15).map((team, index) => `
+            <div class="ranking-item p-3 rounded flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 flex items-center justify-center rounded-full ${index === 0 ? 'bg-yellow-500' : index === 1 ? 'bg-gray-400' : index === 2 ? 'bg-yellow-600' : 'bg-gray-600'}">
+                        <span class="text-white text-sm font-bold">${index + 1}</span>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-white text-sm">${team.team_name}</div>
+                        <div class="text-gray-400 text-xs">${team.member_count} 成员</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-yellow-400 font-bold">${team.total_score}</div>
+                    <div class="text-gray-400 text-xs">积分</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function startLogStream() {
+        const logStream = document.getElementById('logStream');
+        logStream.innerHTML = '';
+        const initialLogs = [
+            { type: 'system', message: 'WebSocket连接已建立', severity: 'low' },
+            { type: 'login', message: '系统管理员已连接', severity: 'low' },
+            { type: 'system', message: '实时态势大屏启动完成', severity: 'low' }
+        ];
+
+        // 修改：按时间顺序添加（最早的先添加）
+        initialLogs.forEach(log => {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${log.type || 'system'}`;
+            logEntry.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-gray-500">[${(++logCounter).toString().padStart(4, '0')}]</span>
+                        <span class="text-gray-500">${new Date().toLocaleTimeString()}</span>
+                        <i class="fas ${log.type === 'login' ? 'fa-sign-in-alt' : 'fa-cog'} text-green-400"></i>
+                        <span class="text-gray-300">${log.message}</span>
+                    </div>
+                    <div class="text-xs text-green-400 uppercase">${log.severity}</div>
+                </div>
+            `;
+            logStream.appendChild(logEntry);  // 在末尾添加初始日志
+        });
+    }
+    // 添加日志条目
+    function addLogEntry(logData) {
+        const logStream = document.getElementById('logStream');
+        logCounter++;
+
+        if (logStream.children.length === 1 && logStream.firstChild.textContent.includes('正在连接')) {
+            logStream.innerHTML = '';
+        }
+
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${logData.type || 'system'}`;
+
+        const timestamp = logData.timestamp ? new Date(logData.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+        const severityColor = {
+            'low': 'text-green-400', 'medium': 'text-yellow-400', 'high': 'text-red-400', 'critical': 'text-red-600 font-bold'
+        }[logData.severity || 'medium'] || 'text-gray-400';
+
+        const typeIcon = {
+            'login': 'fa-sign-in-alt', 'attack': 'fa-bolt', 'system': 'fa-cog', 'error': 'fa-exclamation-triangle',
+            'success': 'fa-check-circle', 'warning': 'fa-exclamation-circle'
+        }[logData.type || 'system'] || 'fa-file-alt';
+
+        logEntry.innerHTML = `
+    <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2">
+            <span class="text-gray-500">[${logCounter.toString().padStart(4, '0')}]</span>
+            <span class="text-gray-500">${timestamp}</span>
+            <i class="fas ${typeIcon} ${severityColor}"></i>
+            <span class="text-gray-300">${logData.message || '系统日志'}</span>
+        </div>
+        <div class="text-xs ${severityColor} uppercase">${logData.severity || 'info'}</div>
+    </div>
+    `;
+
+        // 在开头插入新日志（最新日志在上面）
+        logStream.insertBefore(logEntry, logStream.firstChild);
+
+        // 检测并更新高危告警
+        updateHighRiskAlert(logData);
+
+        // 只有在真实攻击日志时才更新计数
+        if (logData.type === 'attack' && logData.message &&
+            !logData.message.includes('发起') && !logData.message.includes('RedTeam-')) {
+            const totalAttacks = document.getElementById('totalAttacks');
+            const currentCount = parseInt(totalAttacks.textContent) || 0;
+            totalAttacks.textContent = currentCount + 1;
+        }
+
+        // 限制日志数量（从末尾删除旧日志）
+        while (logStream.children.length > 100) {
+            logStream.removeChild(logStream.lastChild);
+        }
+
+        // 修改：保持滚动在顶部（显示最新日志）
+        if (autoScrollEnabled) {
+            logStream.scrollTop = 0;
+        }
+    }
+
+
+    // 动态生成攻击流量图 - 恢复随机攻击线
+    function updateAttackFlow(teams, targets) {
+        const attackFlow = document.getElementById('attackFlow');
+        attackFlow.innerHTML = '';
+
+        const targetCount = targets ? targets.length : 0;
+        const containerWidth = Math.max(1200, targetCount * 250);
+        const contentContainer = document.createElement('div');
+        contentContainer.style.cssText = `position: relative; width: ${containerWidth}px; height: 400px; min-width: ${containerWidth}px;`;
+        attackFlow.appendChild(contentContainer);
+
+        if (!teams || !targets) return;
+
+        // 生成队伍节点（攻击方）- 水平排列在顶部
+        teams.slice(0, 5).forEach((team, index) => {
+            const top = 50;
+            const left = 100 + (index * 200);
+            const node = document.createElement('div');
+            node.className = 'team-node';
+            node.style.cssText = `top: ${top}px; left: ${left}px;`;
+            node.title = `点击查看 ${team.team_name} 的详细信息`;
+            node.textContent = team.team_name.substring(0, 3);
+            node.addEventListener('click', async () => {
+                const attackLogs = await getTeamAttackLogs(team.id);
+                showTeamInfo(team, attackLogs);
+            });
+            contentContainer.appendChild(node);
+
+            // 为每个队伍创建多条随机攻击线
+            const attackLineCount = 2 + Math.floor(Math.random() * 3); // 每个队伍2-4条攻击线
+            for (let i = 0; i < attackLineCount; i++) {
+                if (targets.length > 0) {
+                    const targetIndex = Math.floor(Math.random() * targets.length);
+                    const target = targets[targetIndex];
+                    const targetLeft = 150 + (targetIndex * 220);
+                    const targetTop = 300;
+
+                    createStraightAttackLine(left + 30, top + 30, targetLeft + 40, targetTop, contentContainer);
+                }
+            }
+        });
+
+        // 生成所有靶标节点
+        targets.forEach((target, index) => {
+            const top = 300;
+            const left = 150 + (index * 220);
+            const node = document.createElement('div');
+            node.className = 'target-node';
+            node.style.cssText = `top: ${top}px; left: ${left}px;`;
+            node.title = `点击查看 ${target.name} 的被攻击情况\nIP: ${target.ip_address}`;
+            node.textContent = target.name.length > 8 ? `${target.name.substring(0, 8)}...` : target.name;
+            node.addEventListener('click', async () => {
+                const attackLogs = await getTargetAttackLogs(target.ip_address);
+                showTargetInfo(target, attackLogs);
+            });
+            contentContainer.appendChild(node);
+        });
+
+        document.getElementById('targetCount').textContent = targetCount;
+    }
+
+    function createStraightAttackLine(startX, startY, endX, endY, container) {
+        const deltaX = endX - startX;
+        const deltaY = endY - startY;
+        const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        const angle = Math.atan2(deltaY, deltaX) * 180 / Math.PI;
+
+        const line = document.createElement('div');
+        line.className = 'attack-line';
+        line.style.cssText = `
+            top: ${startY}px;
+            left: ${startX}px;
+            width: ${length}px;
+            transform: rotate(${angle}deg);
+            transform-origin: 0 0;
+            animation-delay: ${Math.random() * 1.5}s;
+        `;
+        container.appendChild(line);
+        createFlowParticles(startX, startY, endX, endY, container);
+    }
+
+    function createFlowParticles(startX, startY, endX, endY, container) {
+        const particleCount = 3;
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'flow-particle';
+            const progress = (i / particleCount) * 0.8;
+            const currentX = startX + (endX - startX) * progress;
+            const currentY = startY + (endY - startY) * progress;
+            particle.style.cssText = `
+                top: ${currentY}px;
+                left: ${currentX}px;
+                animation-delay: ${i * 0.3 + Math.random() * 0.5}s;
+                animation-duration: ${1.5 + Math.random() * 1}s;
+            `;
+            container.appendChild(particle);
+        }
+    }
+
+    function simulateAttackFlow() {
+        const attackFlow = document.getElementById('attackFlow');
+        const attackLines = attackFlow.querySelectorAll('.attack-line');
+        const particles = attackFlow.querySelectorAll('.flow-particle');
+
+        attackLines.forEach(line => {
+            if (Math.random() > 0.8) {
+                line.style.animationDuration = `${1 + Math.random() * 1}s`;
+            }
+        });
+
+        particles.forEach(particle => {
+            if (Math.random() > 0.9) {
+                particle.style.animationDuration = `${1.5 + Math.random() * 1}s`;
+            }
+        });
+    }
+
+    let isDragging = false;
+    let startX, startY;
+    let scrollLeft, scrollTop;
+
+    function initDragFlow() {
+        const attackFlow = document.getElementById('attackFlow');
+        attackFlow.addEventListener('mousedown', startDrag);
+        attackFlow.addEventListener('mousemove', drag);
+        attackFlow.addEventListener('mouseup', endDrag);
+        attackFlow.addEventListener('mouseleave', endDrag);
+        attackFlow.addEventListener('dragstart', (e) => e.preventDefault());
+    }
+
+    function startDrag(e) {
+        const attackFlow = document.getElementById('attackFlow');
+        isDragging = true;
+        startX = e.pageX - attackFlow.offsetLeft;
+        startY = e.pageY - attackFlow.offsetTop;
+        scrollLeft = attackFlow.scrollLeft;
+        scrollTop = attackFlow.scrollTop;
+        attackFlow.style.cursor = 'grabbing';
+    }
+
+    function drag(e) {
+        if (!isDragging) return;
+        e.preventDefault();
+        const attackFlow = document.getElementById('attackFlow');
+        const x = e.pageX - attackFlow.offsetLeft;
+        const y = e.pageY - attackFlow.offsetTop;
+        const walkX = (x - startX) * 2;
+        const walkY = (y - startY) * 2;
+        attackFlow.scrollLeft = scrollLeft - walkX;
+        attackFlow.scrollTop = scrollTop - walkY;
+    }
+
+    function endDrag() {
+        isDragging = false;
+        const attackFlow = document.getElementById('attackFlow');
+        attackFlow.style.cursor = 'grab';
+    }
+
+    function updateFlowStyle() {
+        const attackFlow = document.getElementById('attackFlow');
+        attackFlow.style.cursor = 'grab';
+        attackFlow.style.overflow = 'auto';
+    }
+
+    function updateSystemTime() {
+        const now = new Date();
+        document.getElementById('systemTime').textContent = now.toLocaleTimeString('zh-CN');
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    function refreshData() {
+        loadSituationData();
+        showNotification('数据已刷新', 'success');
+    }
+
+    function toggleAutoScroll() {
+        autoScrollEnabled = !autoScrollEnabled;
+        const btn = document.getElementById('autoScrollBtn');
+        if (autoScrollEnabled) {
+            btn.innerHTML = '<i class="fas fa-pause"></i>';
+            btn.title = '暂停自动滚动';
+        } else {
+            btn.innerHTML = '<i class="fas fa-play"></i>';
+            btn.title = '启用自动滚动';
+        }
+    }
+
+    function clearLogs() {
+        const logStream = document.getElementById('logStream');
+        logStream.innerHTML = '<div class="text-center text-gray-400 py-8">日志已清空</div>';
+        logCounter = 0;
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'F11') {
+            e.preventDefault();
+            toggleFullscreen();
+        }
+        if (e.key === 'r' && e.ctrlKey) {
+            e.preventDefault();
+            refreshData();
+        }
+        if (e.key === 'c' && e.ctrlKey) {
+            e.preventDefault();
+            clearLogs();
+        }
+    });
+
+    window.addEventListener('beforeunload', function (e) {
+        if (document.fullscreenElement) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+
+
+    // 高危告警相关变量
+    let lastHighRiskAlert = null;
+    let alertTimeout = null;
+
+    // 更新高危告警显示
+    function updateHighRiskAlert(logData) {
+        // 只处理高危和严重级别的日志
+        if (logData.severity === 'high' || logData.severity === 'critical') {
+            const alertDiv = document.getElementById('highRiskAlert');
+            const alertMessage = document.getElementById('alertMessage');
+
+            // 更新告警信息
+            lastHighRiskAlert = {
+                message: logData.message,
+                type: logData.type,
+                severity: logData.severity,
+                timestamp: new Date()
+            };
+
+            // 显示告警
+            alertDiv.classList.remove('hidden');
+            alertMessage.textContent = `${logData.severity === 'critical' ? '严重' : '高危'}告警: ${logData.message.substring(0, 30)}${logData.message.length > 30 ? '...' : ''}`;
+
+            // 清除之前的定时器
+            if (alertTimeout) {
+                clearTimeout(alertTimeout);
+            }
+
+            // 30秒后自动隐藏告警
+            alertTimeout = setTimeout(() => {
+                alertDiv.classList.add('hidden');
+            }, 30000);
+        }
+    }
+
+    // 手动清除告警
+    function clearAlert() {
+        const alertDiv = document.getElementById('highRiskAlert');
+        alertDiv.classList.add('hidden');
+        if (alertTimeout) {
+            clearTimeout(alertTimeout);
+        }
+    }
+</script>
+{% endblock %}

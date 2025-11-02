@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}用户登录 - 实时攻防平台{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <!-- Logo -->
+        <div class="text-center">
+            <div class="w-20 h-20 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center mx-auto mb-6">
+                <i class="fas fa-shield-alt text-white text-3xl"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-white mb-2">
+                实时攻防平台
+            </h2>
+            <p class="text-gray-300">
+                登录您的账户开始攻防演练
+            </p>
+        </div>
+        
+        <!-- 登录表单 -->
+        <div class="cyber-card p-8 rounded-lg">
+            <form id="loginForm" class="space-y-6">
+                <div>
+                    <label for="username" class="block text-sm font-medium text-gray-300 mb-2">
+                        <i class="fas fa-user mr-2"></i>用户名
+                    </label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        required 
+                        class="cyber-input w-full px-3 py-2 rounded-lg"
+                        placeholder="请输入用户名"
+                        autocomplete="username"
+                    >
+                </div>
+                
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-300 mb-2">
+                        <i class="fas fa-lock mr-2"></i>密码
+                    </label>
+                    <div class="relative">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            required 
+                            class="cyber-input w-full px-3 py-2 pr-10 rounded-lg"
+                            placeholder="请输入密码"
+                            autocomplete="current-password"
+                        >
+                        <button 
+                            type="button" 
+                            id="togglePassword" 
+                            class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white"
+                        >
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <input 
+                            id="remember" 
+                            name="remember" 
+                            type="checkbox" 
+                            class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        >
+                        <label for="remember" class="ml-2 block text-sm text-gray-300">
+                            记住我
+                        </label>
+                    </div>
+                    
+                    <div class="text-sm">
+                        <a href="#" class="text-red-400 hover:text-red-300">
+                            忘记密码？
+                        </a>
+                    </div>
+                </div>
+                
+                <div>
+                    <button 
+                        type="submit" 
+                        class="cyber-button w-full py-3 px-4 rounded-lg font-semibold text-white transition duration-200"
+                        id="loginButton"
+                    >
+                        <span id="loginText">
+                            <i class="fas fa-sign-in-alt mr-2"></i>登录
+                        </span>
+                        <span id="loginLoading" class="hidden">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>登录中...
+                        </span>
+                    </button>
+                </div>
+            </form>
+            
+            <!-- 演示账户信息 -->
+            <div class="mt-8 pt-6 border-t border-gray-600">
+                
+                <div class="space-y-2 text-xs text-gray-400">
+                    <div class="flex justify-between items-center p-2 bg-gray-800 rounded">
+                        <span>管理员账户:</span>
+                        <div class="text-right">
+                            <div>用户名: admin</div>
+                            <div>默认密码: 作者名</div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center text-gray-500 text-xs mt-2">
+                        红队账户由管理员批量创建
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 错误提示 -->
+        <div id="errorMessage" class="hidden bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg">
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                <span id="errorText"></span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const loginForm = document.getElementById('loginForm');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const togglePassword = document.getElementById('togglePassword');
+        const loginButton = document.getElementById('loginButton');
+        const loginText = document.getElementById('loginText');
+        const loginLoading = document.getElementById('loginLoading');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorText = document.getElementById('errorText');
+        
+        // 密码显示/隐藏切换
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            
+            const icon = this.querySelector('i');
+            icon.className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
+        });
+        
+        // 表单提交处理
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+            
+            if (!username || !password) {
+                showError('请填写用户名和密码');
+                return;
+            }
+            
+            // 显示加载状态
+            loginButton.disabled = true;
+            loginText.classList.add('hidden');
+            loginLoading.classList.remove('hidden');
+            hideError();
+            
+            try {
+                const response = await axios.post('/api/login', {
+                    username: username,
+                    password: password
+                });
+                
+                if (response.data.success) {
+                    showNotification('登录成功！', 'success');
+                    
+                    // 延迟跳转，让用户看到成功提示
+                    setTimeout(() => {
+                        const user = response.data.user;
+                        if (user.role === 'admin') {
+                            window.location.href = '/admin';
+                        } else {
+                            window.location.href = '/dashboard';
+                        }
+                    }, 1000);
+                } else {
+                    showError(response.data.message || '登录失败');
+                }
+                
+            } catch (error) {
+                console.error('Login error:', error);
+                
+                if (error.response && error.response.data) {
+                    showError(error.response.data.message || '登录请求失败');
+                } else {
+                    showError('网络连接错误，请稍后重试');
+                }
+            } finally {
+                // 恢复按钮状态
+                loginButton.disabled = false;
+                loginText.classList.remove('hidden');
+                loginLoading.classList.add('hidden');
+            }
+        });
+        
+        // 显示错误信息
+        function showError(message) {
+            errorText.textContent = message;
+            errorMessage.classList.remove('hidden');
+            
+            // 5秒后自动隐藏
+            setTimeout(hideError, 5000);
+        }
+        
+        // 隐藏错误信息
+        function hideError() {
+            errorMessage.classList.add('hidden');
+        }
+        
+        // 输入框焦点事件
+        usernameInput.addEventListener('focus', hideError);
+        passwordInput.addEventListener('focus', hideError);
+        
+        // 回车键提交
+        usernameInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                passwordInput.focus();
+            }
+        });
+        
+        passwordInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loginForm.dispatchEvent(new Event('submit'));
+            }
+        });
+        
+        // 自动聚焦到用户名输入框
+        usernameInput.focus();
+        
+        // 检查是否已经登录
+        checkAuth().then(result => {
+            if (result.authenticated) {
+                if (result.user.role === 'admin') {
+                    window.location.href = '/admin';
+                } else {
+                    window.location.href = '/dashboard';
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+
+{% block title %}实时攻防平台 - 网络安全攻防演练系统{% endblock %}
+
+{% block content %}
+<!-- 主要内容区域 -->
+<div class="min-h-screen">
+    <!-- Hero Section -->
+    <section class="relative py-20 px-4">
+        <div class="max-w-6xl mx-auto text-center">
+            <!-- 主标题 -->
+            <div class="mb-8">
+                <h1 class="text-6xl font-bold mb-4">
+                    <span class="bg-gradient-to-r from-red-500 to-red-800 bg-clip-text text-transparent">
+                        实时攻防平台
+                    </span>
+                </h1>
+                <div class="typing-animation text-2xl text-gray-300 mx-auto max-w-2xl">
+                    Cyber Range Platform - 专业的网络安全攻防演练系统
+                </div>
+            </div>
+
+            <!-- 描述 -->
+            <p class="text-xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+                基于红黑色调主题设计的专业攻防演练平台，支持实时态势感知、队伍管理、靶标部署、
+                成绩统计等完整功能，为网络安全人才培养提供最佳实践环境。
+            </p>
+
+            <!-- 功能特性 -->
+            <div class="grid md:grid-cols-3 gap-8 mb-16">
+                <div class="cyber-card p-6 rounded-lg">
+                    <div
+                        class="w-16 h-16 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-eye text-white text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2 text-white">实时态势感知</h3>
+                    <p class="text-gray-300 text-sm">
+                        实时显示攻击流量、队伍排名、系统日志，全面掌握攻防态势
+                    </p>
+                </div>
+
+                <div class="cyber-card p-6 rounded-lg">
+                    <div
+                        class="w-16 h-16 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-users text-white text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2 text-white">队伍管理</h3>
+                    <p class="text-gray-300 text-sm">
+                        支持批量创建账户、队伍重命名、成员管理，灵活配置参赛队伍
+                    </p>
+                </div>
+
+                <div class="cyber-card p-6 rounded-lg">
+                    <div
+                        class="w-16 h-16 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-target text-white text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2 text-white">靶标部署</h3>
+                    <p class="text-gray-300 text-sm">
+                        灵活的靶标配置，支持多种服务类型，动态Flag生成机制
+                    </p>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                {% if not session.get('username') %}
+                <a href="/login"
+                    class="cyber-button px-8 py-3 rounded-lg text-lg font-semibold inline-flex items-center">
+                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    开始演练
+                </a>
+                {% endif %}
+                <a href="/situation"
+                    class="bg-transparent border-2 border-red-600 text-red-400 px-8 py-3 rounded-lg text-lg font-semibold hover:bg-red-600 hover:text-white transition-all duration-300 inline-flex items-center">
+                    <i class="fas fa-chart-line mr-2"></i>
+                    查看态势
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- 实时数据展示 -->
+    <section class="py-16 px-4">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">
+                <span class="bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">
+                    实时数据概览
+                </span>
+            </h2>
+
+            <div class="grid md:grid-cols-4 gap-6">
+                <div class="cyber-card p-6 text-center">
+                    <div class="text-3xl font-bold text-red-400 mb-2" id="activeTeams">0</div>
+                    <div class="text-gray-300">活跃队伍</div>
+                </div>
+
+                <div class="cyber-card p-6 text-center">
+                    <div class="text-3xl font-bold text-yellow-400 mb-2" id="totalScore">0</div>
+                    <div class="text-gray-300">总积分</div>
+                </div>
+
+                <div class="cyber-card p-6 text-center">
+                    <div class="text-3xl font-bold text-green-400 mb-2" id="activeTargets">0</div>
+                    <div class="text-gray-300">活跃靶标</div>
+                </div>
+
+                <div class="cyber-card p-6 text-center">
+                    <div class="text-3xl font-bold text-blue-400 mb-2" id="recentLogs">0</div>
+                    <div class="text-gray-300">最新日志</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 最新动态 -->
+    <section class="py-16 px-4">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">
+                <span class="bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">
+                    最新动态
+                </span>
+            </h2>
+
+            <div class="cyber-card p-6 rounded-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold text-white">
+                        <i class="fas fa-list-alt mr-2"></i>实时日志
+                    </h3>
+                    <div class="pulse-animation">
+                        <i class="fas fa-circle text-red-400 text-xs"></i>
+                        <span class="text-sm text-gray-300 ml-1">实时更新</span>
+                    </div>
+                </div>
+
+                <div id="recentLogsList" class="space-y-2 max-h-64 overflow-y-auto">
+                    <div class="text-center text-gray-400 py-8">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>
+                        正在加载最新动态...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 快速链接 -->
+    <section class="py-16 px-4">
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-12">
+                <span class="bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">
+                    快速导航
+                </span>
+            </h2>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <a href="/situation"
+                    class="cyber-card p-6 rounded-lg hover:cyber-glow transition-all duration-300 block">
+                    <div class="flex items-center mb-4">
+                        <div
+                            class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fas fa-chart-line text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">实时态势大屏</h3>
+                            <p class="text-gray-300 text-sm">查看实时攻击态势和队伍排名</p>
+                        </div>
+                    </div>
+                </a>
+
+                {% if session.get('role') == 'admin' %}
+                <a href="/admin" class="cyber-card p-6 rounded-lg hover:cyber-glow transition-all duration-300 block">
+                    <div class="flex items-center mb-4">
+                        <div
+                            class="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fas fa-cog text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">管理面板</h3>
+                            <p class="text-gray-300 text-sm">管理用户、比赛和靶标配置</p>
+                        </div>
+                    </div>
+                </a>
+                {% elif session.get('username') %}
+                <a href="/dashboard"
+                    class="cyber-card p-6 rounded-lg hover:cyber-glow transition-all duration-300 block">
+                    <div class="flex items-center mb-4">
+                        <div
+                            class="w-12 h-12 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fas fa-user text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">用户面板</h3>
+                            <p class="text-gray-300 text-sm">提交Flag、查看积分和排名</p>
+                        </div>
+                    </div>
+                </a>
+                {% else %}
+                <a href="/login" class="cyber-card p-6 rounded-lg hover:cyber-glow transition-all duration-300 block">
+                    <div class="flex items-center mb-4">
+                        <div
+                            class="w-12 h-12 bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center mr-4">
+                            <i class="fas fa-sign-in-alt text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-white">用户登录</h3>
+                            <p class="text-gray-300 text-sm">登录平台参与攻防演练</p>
+                        </div>
+                    </div>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 页面加载完成后获取实时数据
+    document.addEventListener('DOMContentLoaded', async function () {
+        await loadRealTimeData();
+        await loadRecentLogs();
+
+        // 每30秒更新一次数据
+        setInterval(loadRealTimeData, 30000);
+        setInterval(loadRecentLogs, 10000);
+    });
+
+    async function loadRealTimeData() {
+        try {
+            const response = await axios.get('/api/rankings');
+            if (response.data.success) {
+                const teams = response.data.team_rankings;
+                const users = response.data.user_rankings;
+
+                // 更新统计数据
+                document.getElementById('activeTeams').textContent = teams.length;
+                document.getElementById('totalScore').textContent =
+                    teams.reduce((sum, team) => sum + team.total_score, 0);
+
+                // 获取活跃靶标数量
+                const targetsResponse = await axios.get('/api/targets');
+                if (targetsResponse.data.success) {
+                    document.getElementById('activeTargets').textContent =
+                        targetsResponse.data.targets.length;
+                }
+            }
+        } catch (error) {
+            console.error('加载实时数据失败:', error);
+        }
+    }
+
+async function loadRecentLogs() {
+    try {
+        console.log("开始加载最新日志...");
+        const response = await axios.get('/api/home/logs');
+        console.log("API响应:", response.data);
+        
+        if (response.data.success) {
+            const logsContainer = document.getElementById('recentLogsList');
+            const logs = response.data.logs;
+            
+            console.log(`收到 ${logs.length} 条日志`);
+            
+            if (logs.length === 0) {
+                logsContainer.innerHTML = '<div class="text-gray-400 text-center py-8">暂无日志数据</div>';
+                document.getElementById('recentLogs').textContent = '0';
+                return;
+            }
+            
+            // 清空容器
+            logsContainer.innerHTML = '';
+            
+            // 添加日志条目
+            logs.forEach(log => {
+                const logElement = document.createElement('div');
+                logElement.className = `log-entry ${log.type}`;
+                logElement.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <i class="fas ${getLogTypeIcon(log.type)} mr-2 ${getSeverityColor(log.severity)}"></i>
+                            <span class="text-sm">${log.message}</span>
+                        </div>
+                        <span class="text-xs text-gray-400">${formatTime(log.created_at)}</span>
+                    </div>
+                `;
+                logsContainer.appendChild(logElement);
+            });
+            
+            // 更新日志计数
+            document.getElementById('recentLogs').textContent = logs.length;
+            console.log("日志加载完成");
+            
+        } else {
+            console.error("API返回失败:", response.data.message);
+            throw new Error(response.data.message || '获取日志失败');
+        }
+    } catch (error) {
+        console.error('加载最新日志失败:', error);
+        const logsContainer = document.getElementById('recentLogsList');
+        logsContainer.innerHTML = `
+            <div class="text-red-400 text-center py-8">
+                <i class="fas fa-exclamation-triangle mr-2"></i>
+                加载日志失败: ${error.message}
+            </div>
+        `;
+        document.getElementById('recentLogs').textContent = '0';
+    }
+}
+    
+    
+    
+    
+    
+    // 监听WebSocket日志更新
+    window.addEventListener('logUpdate', function (event) {
+        const logData = event.detail;
+        const logsContainer = document.getElementById('recentLogsList');
+
+        const logElement = document.createElement('div');
+        logElement.className = `log-entry ${logData.type || 'system'}`;
+        logElement.innerHTML = `
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <i class="fas ${getLogTypeIcon(logData.type || 'system')} mr-2 ${getSeverityColor(logData.severity || 'medium')}"></i>
+                    <span class="text-sm">${logData.message}</span>
+                </div>
+                <span class="text-xs text-gray-400">${formatTime(logData.timestamp || new Date().toISOString())}</span>
+            </div>
+        `;
+
+        if (logsContainer.children.length === 1 &&
+            logsContainer.firstChild.textContent.includes('正在加载')) {
+            logsContainer.innerHTML = '';
+        }
+
+        logsContainer.insertBefore(logElement, logsContainer.firstChild);
+
+        while (logsContainer.children.length > 10) {
+            logsContainer.removeChild(logsContainer.lastChild);
+        }
+
+        document.getElementById('recentLogs').textContent = logsContainer.children.length;
+    });
+// 添加这些工具函数（如果不存在）
+function getLogTypeIcon(logType) {
+    const iconMap = {
+        'login': 'fa-sign-in-alt',
+        'attack': 'fa-bolt', 
+        'system': 'fa-cog',
+        'error': 'fa-exclamation-triangle',
+        'success': 'fa-check-circle',
+        'warning': 'fa-exclamation-circle'
+    };
+    return iconMap[logType] || 'fa-file-alt';
+}
+
+function getSeverityColor(severity) {
+    const colorMap = {
+        'low': 'text-green-400',
+        'medium': 'text-yellow-400', 
+        'high': 'text-red-400',
+        'critical': 'text-red-600'
+    };
+    return colorMap[severity] || 'text-gray-400';
+}
+
+function formatTime(timestamp) {
+    return new Date(timestamp).toLocaleTimeString('zh-CN');
+}
+
+</script>
+{% endblock %}
