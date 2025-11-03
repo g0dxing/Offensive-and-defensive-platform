@@ -104,9 +104,9 @@ Red_Game/
 ## 🚀 快速开始
 
 ### 环境要求
-- Python 3.8+
+- Python 3.9
 - MySQL 5.7+
-- Node.js 14+ (用于前端依赖)
+
 
 ### 安装步骤
 
@@ -120,12 +120,13 @@ cd Red_Game
 ```bash
 pip install -r requirements.txt
 ```
-
+安装python3.9教程：[源码编译安装python3.9](https://blog.csdn.net/qq_64643536/article/details/154342125?sharetype=blogdetail&sharerId=154342125&sharerefer=PC&sharesource=qq_64643536&spm=1011.2480.3001.8118)
 3. **配置数据库**
 ```bash
 # 创建数据库
 mysql -u root -p < database_schema.sql
 ```
+debian系列 安装数据库教程：[debian部署mariadb](https://blog.csdn.net/qq_64643536/article/details/143195029?spm=1001.2014.3001.5501)
 
 4. **启动应用**
 ```bash

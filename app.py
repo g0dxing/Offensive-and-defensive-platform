@@ -3,7 +3,6 @@
 """
 实时攻防平台后端主程序
 红黑色调主题，支持管理员和红队成员功能
-明文密码版本
 """
 
 from flask import Flask, request, jsonify, session, send_from_directory, render_template
