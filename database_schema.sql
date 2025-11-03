@@ -1,6 +1,9 @@
 -- 实时攻防平台数据库设计
 -- 主题：红黑色调攻防平台
 
+-- 删除数据库
+DROP DATABASE IF EXISTS Red_Game;
+
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS Red_Game CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE Red_Game;
