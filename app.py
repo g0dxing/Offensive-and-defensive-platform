@@ -778,6 +778,72 @@ def get_system_logs():
     })
 
 
+
+
+# 在 app.py 的 API路由 - 管理员功能部分添加以下路由
+# 可以放在 manage_competitions 路由后面
+
+@app.route('/api/admin/competitions/<int:competition_id>', methods=['GET', 'PUT'])
+def manage_competition(competition_id):
+    """获取和更新比赛信息"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+    
+    competition = Competition.query.get_or_404(competition_id)
+    
+    if request.method == 'GET':
+        return jsonify({
+            'success': True,
+            'competition': {
+                'id': competition.id,
+                'name': competition.name,
+                'description': competition.description,
+                'background_story': competition.background_story,
+                'theme_image': competition.theme_image,
+                'start_time': competition.start_time.isoformat() if competition.start_time else None,
+                'end_time': competition.end_time.isoformat() if competition.end_time else None,
+                'is_active': competition.is_active,
+                'is_ended': competition.is_ended,
+                'created_at': competition.created_at.isoformat()
+            }
+        })
+    
+    elif request.method == 'PUT':
+        data = request.json
+        
+        if 'name' in data:
+            competition.name = data['name']
+        if 'description' in data:
+            competition.description = data['description']
+        if 'background_story' in data:
+            competition.background_story = data['background_story']
+        if 'start_time' in data and data['start_time']:
+            competition.start_time = datetime.fromisoformat(data['start_time'])
+        if 'end_time' in data and data['end_time']:
+            competition.end_time = datetime.fromisoformat(data['end_time'])
+        if 'is_active' in data:
+            competition.is_active = data['is_active']
+        
+        db.session.commit()
+        
+        # 记录操作日志
+        log_entry = SystemLog(
+            log_type='system',
+            message=f'管理员更新了比赛: {competition.name}',
+            severity='low',
+            user_id=session['user_id']
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': '比赛信息更新成功'
+        })
+
+
+
+
 @socketio.on('associate_user')
 def handle_associate_user(data=None):
     """关联WebSocket连接和用户"""

@@ -603,34 +603,41 @@
                     return;
                 }
 
-                competitionsList.innerHTML = competitions.map(competition => `
-                    <div class="bg-gray-800 p-4 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <h4 class="font-semibold text-white">${competition.name}</h4>
-                            <div class="flex items-center space-x-2">
-                            ${competition.is_ended ?
-                        '<span class="px-2 py-1 bg-gray-600 text-xs rounded">已结束</span>' :
-                        competition.is_active ?
-                            '<span class="px-2 py-1 bg-green-600 text-xs rounded">进行中</span>' :
-                            '<span class="px-2 py-1 bg-yellow-600 text-xs rounded">未开始</span>'
-                    }       
-                            </div>
-                        </div>
-                        <p class="text-sm text-gray-400 mb-3">${competition.description || '暂无描述'}</p>
-                        <div class="flex items-center justify-between text-xs text-gray-500">
-                            <span>创建时间: ${formatTime(competition.created_at)}</span>
-                            <div class="space-x-2">
-                                ${!competition.is_ended ?
-                        `<button onclick="endCompetition(${competition.id})" class="text-red-400 hover:text-red-300">结束比赛</button>` :
-                        '<span class="text-gray-500">已结束</span>'
-                    }
-                                <button onclick="deleteCompetition(${competition.id})" class="text-red-600 hover:text-red-500">
-                                    <i class="fas fa-trash mr-1"></i>删除
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+ // 在 admin.html 的 JavaScript 部分，找到 loadCompetitions 函数
+// 修改比赛列表的显示模板
+
+competitionsList.innerHTML = competitions.map(competition => `
+    <div class="bg-gray-800 p-4 rounded-lg">
+        <div class="flex items-center justify-between mb-2">
+            <h4 class="font-semibold text-white">${competition.name}</h4>
+            <div class="flex items-center space-x-2">
+                ${competition.is_ended ?
+                    '<span class="px-2 py-1 bg-gray-600 text-xs rounded">已结束</span>' :
+                    competition.is_active ?
+                        '<span class="px-2 py-1 bg-green-600 text-xs rounded">进行中</span>' :
+                        '<span class="px-2 py-1 bg-yellow-600 text-xs rounded">未开始</span>'
+                }       
+            </div>
+        </div>
+        <p class="text-sm text-gray-400 mb-3">${competition.description || '暂无描述'}</p>
+        <div class="flex items-center justify-between text-xs text-gray-500">
+            <span>创建时间: ${formatTime(competition.created_at)}</span>
+            <div class="space-x-2">
+                <!-- 添加编辑按钮 -->
+                <button onclick="showEditCompetitionModal(${competition.id})" class="text-blue-400 hover:text-blue-300">
+                    <i class="fas fa-edit mr-1"></i>编辑
+                </button>
+                ${!competition.is_ended ?
+                    `<button onclick="endCompetition(${competition.id})" class="text-red-400 hover:text-red-300">结束比赛</button>` :
+                    '<span class="text-gray-500">已结束</span>'
+                }
+                <button onclick="deleteCompetition(${competition.id})" class="text-red-600 hover:text-red-500">
+                    <i class="fas fa-trash mr-1"></i>删除
+                </button>
+            </div>
+        </div>
+    </div>
+`).join('');
             }
         } catch (error) {
             console.error('加载比赛列表失败:', error);
@@ -1307,6 +1314,91 @@ async function renameTeam(teamId) {
     } catch (error) {
         console.error('修改队名失败:', error);
         showNotification('修改请求失败', 'error');
+    }
+}
+
+
+
+// 显示编辑比赛模态框
+async function showEditCompetitionModal(competitionId) {
+    try {
+        // 获取比赛详情
+        const response = await axios.get(`/api/admin/competitions/${competitionId}`);
+        if (response.data.success) {
+            const competition = response.data.competition;
+            
+            showModal(`
+                <h3 class="text-xl font-bold text-white mb-4">编辑比赛</h3>
+                <form id="editCompetitionForm" class="space-y-4">
+                    <input type="hidden" id="editCompetitionId" value="${competition.id}">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">比赛名称</label>
+                        <input type="text" id="editCompetitionName" value="${competition.name}" required class="cyber-input w-full px-3 py-2 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">比赛描述</label>
+                        <textarea id="editCompetitionDescription" rows="3" class="cyber-input w-full px-3 py-2 rounded-lg">${competition.description || ''}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-300 mb-2">背景故事</label>
+                        <textarea id="editCompetitionStory" rows="4" class="cyber-input w-full px-3 py-2 rounded-lg">${competition.background_story || ''}</textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">开始时间</label>
+                            <input type="datetime-local" id="editCompetitionStartTime" value="${competition.start_time ? competition.start_time.replace(' ', 'T').substring(0, 16) : ''}" class="cyber-input w-full px-3 py-2 rounded-lg">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-2">结束时间</label>
+                            <input type="datetime-local" id="editCompetitionEndTime" value="${competition.end_time ? competition.end_time.replace(' ', 'T').substring(0, 16) : ''}" class="cyber-input w-full px-3 py-2 rounded-lg">
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="editCompetitionActive" ${competition.is_active ? 'checked' : ''} class="mr-2">
+                        <label class="text-sm font-medium text-gray-300">是否活跃</label>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-600 rounded">取消</button>
+                        <button type="submit" class="cyber-button px-4 py-2 rounded">保存修改</button>
+                    </div>
+                </form>
+            `);
+
+            document.getElementById('editCompetitionForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                await updateCompetition(competitionId);
+            });
+        }
+    } catch (error) {
+        console.error('获取比赛详情失败:', error);
+        showNotification('获取比赛信息失败', 'error');
+    }
+}
+
+// 更新比赛信息
+async function updateCompetition(competitionId) {
+    try {
+        const formData = {
+            name: document.getElementById('editCompetitionName').value,
+            description: document.getElementById('editCompetitionDescription').value,
+            background_story: document.getElementById('editCompetitionStory').value,
+            start_time: document.getElementById('editCompetitionStartTime').value,
+            end_time: document.getElementById('editCompetitionEndTime').value,
+            is_active: document.getElementById('editCompetitionActive').checked
+        };
+
+        const response = await axios.put(`/api/admin/competitions/${competitionId}`, formData);
+
+        if (response.data.success) {
+            showNotification('比赛信息更新成功', 'success');
+            closeModal();
+            loadCompetitions(); // 重新加载比赛列表
+        } else {
+            showNotification(response.data.message, 'error');
+        }
+    } catch (error) {
+        console.error('更新比赛失败:', error);
+        showNotification('更新失败', 'error');
     }
 }
 </script>
