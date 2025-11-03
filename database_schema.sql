@@ -25,7 +25,7 @@ CREATE TABLE users (
     role ENUM('admin', 'red_team') DEFAULT 'red_team',
     team_id INT,
     nickname VARCHAR(100),
-    avatar VARCHAR(255),
+    avatar VARCHAR(255),  -- 确保有这个字段
     total_score INT DEFAULT 0,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

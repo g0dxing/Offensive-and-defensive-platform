@@ -313,6 +313,11 @@ def login():
     session['username'] = user.username
     session['role'] = user.role
     session['team_id'] = user.team_id
+    session['nickname'] = user.nickname
+    session['total_score'] = user.total_score
+    # 添加这一行：设置头像到session
+    if user.avatar:
+        session['avatar'] = f"/static/{user.avatar}"
 
     return jsonify({
         'success': True,
@@ -323,9 +328,12 @@ def login():
             'role': user.role,
             'team_id': user.team_id,
             'nickname': user.nickname,
-            'total_score': user.total_score
+            'total_score': user.total_score,
+            'avatar': user.avatar  # 返回头像信息
         }
     })
+
+
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
@@ -347,6 +355,10 @@ def check_auth():
     if session.get('total_score') != user.total_score:
         session['total_score'] = user.total_score
 
+    # 确保session中有头像信息
+    if user.avatar and 'avatar' not in session:
+        session['avatar'] = f"/static/{user.avatar}"
+
     return jsonify({
         'authenticated': True,
         'user': {
@@ -355,9 +367,11 @@ def check_auth():
             'role': user.role,
             'team_id': user.team_id,
             'nickname': user.nickname,
-            'total_score': user.total_score
+            'total_score': user.total_score,
+            'avatar': user.avatar  # 返回头像信息
         }
     })
+
 
 # =============================================================================
 # API路由 - 用户功能
@@ -381,7 +395,8 @@ def user_profile():
                 'nickname': user.nickname,
                 'team_id': user.team_id,
                 'total_score': user.total_score,
-                'created_at': user.created_at.isoformat()
+                'created_at': user.created_at.isoformat(),
+                'avatar': user.avatar
             }
         })
 
@@ -480,6 +495,83 @@ def rename_team():
         'success': True,
         'message': '队伍名称更新成功'
     })
+
+# =============================================================================
+# API路由 - 头像上传
+# =============================================================================
+
+@app.route('/api/user/avatar', methods=['POST'])
+def upload_avatar():
+    """上传用户头像"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': '请先登录'}), 401
+
+    if 'avatar' not in request.files:
+        return jsonify({'success': False, 'message': '请选择头像文件'}), 400
+
+    avatar_file = request.files['avatar']
+    
+    if avatar_file.filename == '':
+        return jsonify({'success': False, 'message': '请选择有效的头像文件'}), 400
+
+    # 检查文件类型
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+    if '.' not in avatar_file.filename or \
+       avatar_file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
+        return jsonify({'success': False, 'message': '只支持PNG、JPG、JPEG、GIF格式的图片'}), 400
+
+    # 检查文件大小（限制为2MB）
+    avatar_file.seek(0, 2)  # 移动到文件末尾
+    file_size = avatar_file.tell()
+    avatar_file.seek(0)  # 重置文件指针
+    if file_size > 2 * 1024 * 1024:
+        return jsonify({'success': False, 'message': '头像文件大小不能超过2MB'}), 400
+
+    try:
+        user = User.query.get(session['user_id'])
+        
+        # 生成唯一文件名
+        import uuid
+        file_extension = avatar_file.filename.rsplit('.', 1)[1].lower()
+        filename = f"avatar_{user.id}_{uuid.uuid4().hex[:8]}.{file_extension}"
+        
+        # 保存文件
+        upload_folder = app.config['UPLOAD_FOLDER']
+        avatar_path = os.path.join(upload_folder, 'avatars')
+        os.makedirs(avatar_path, exist_ok=True)
+        
+        file_path = os.path.join(avatar_path, filename)
+        avatar_file.save(file_path)
+        
+        # 更新用户头像路径（相对路径）
+        user.avatar = f"uploads/avatars/{filename}"
+        db.session.commit()
+
+        # 更新session中的头像信息
+        session['avatar'] = f"/static/uploads/avatars/{filename}"
+
+        # 记录日志
+        log_entry = SystemLog(
+            log_type='system',
+            message=f'用户 {user.username} 更新了头像',
+            severity='low',
+            user_id=user.id,
+            team_id=user.team_id
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '头像上传成功',
+            'avatar_url': f"/static/uploads/avatars/{filename}"
+        })
+
+    except Exception as e:
+        print(f"头像上传失败: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': '头像上传失败'}), 500
+
 
 # =============================================================================
 # API路由 - 比赛和靶标功能
