@@ -94,12 +94,12 @@ class User(db.Model):
 class Team(db.Model):
     """队伍模型"""
     __tablename__ = 'teams'
-
     id = db.Column(db.Integer, primary_key=True)
     team_name = db.Column(db.String(100), unique=True, nullable=False)
     team_icon = db.Column(db.String(255))
     total_score = db.Column(db.Integer, default=0)
     member_count = db.Column(db.Integer, default=0)
+    max_members = db.Column(db.Integer, default=3)  # 新增字段
     created_at = db.Column(db.TIMESTAMP, default=get_local_time)
     updated_at = db.Column(db.TIMESTAMP, default=get_local_time, onupdate=get_local_time)
 
@@ -739,15 +739,18 @@ def create_teams():
     """批量创建队伍和账户"""
     if 'user_id' not in session or session.get('role') != 'admin':
         return jsonify({'success': False, 'message': '无权限访问'}), 403
-
+    
     data = request.json
     team_count = data.get('team_count', 1)
-
+    max_members = data.get('max_members', 3)  # 新增：获取队伍人数
+    
     if not isinstance(team_count, int) or team_count < 1:
         return jsonify({'success': False, 'message': '队伍数量必须是正整数'}), 400
-
+    
+    if not isinstance(max_members, int) or max_members < 1 or max_members > 10:
+        return jsonify({'success': False, 'message': '队伍人数必须在1-10之间'}), 400
+    
     created_teams = []
-
     for i in range(team_count):
         team_counter = 1
         while True:
@@ -755,17 +758,21 @@ def create_teams():
             if not Team.query.filter_by(team_name=team_name).first():
                 break
             team_counter += 1
-
-        team = Team(team_name=team_name, team_icon=f"team_icon_{i+1}.png")
+        
+        team = Team(
+            team_name=team_name, 
+            team_icon=f"team_icon_{i+1}.png",
+            max_members=max_members  # 新增：设置队伍最大人数
+        )
         db.session.add(team)
         db.session.flush()
-
+        
         team_members = []
-        for j in range(3):
+        for j in range(max_members):  # 修改：根据max_members创建成员
             username = generate_random_username()
             password = generate_random_password()
             nickname = f"{team_name}-Member{j+1}"
-
+            
             user = User(
                 username=username,
                 password=password,
@@ -779,29 +786,31 @@ def create_teams():
                 'password': password,
                 'nickname': nickname
             })
-
-        team.member_count = 3
+        
+        team.member_count = max_members  # 修改：设置实际成员数量
         created_teams.append({
             'team_name': team_name,
+            'max_members': max_members,  # 新增：返回队伍人数信息
             'members': team_members
         })
-
+    
     db.session.commit()
-
+    
     log_entry = SystemLog(
         log_type='system',
-        message=f'管理员批量创建了 {team_count} 个队伍',
+        message=f'管理员批量创建了 {team_count} 个队伍，每队 {max_members} 人',
         severity='low',
         user_id=session['user_id']
     )
     db.session.add(log_entry)
     db.session.commit()
-
+    
     return jsonify({
         'success': True,
-        'message': f'成功创建 {team_count} 个队伍',
+        'message': f'成功创建 {team_count} 个队伍，每队 {max_members} 人',
         'teams': created_teams
     })
+
 
 @app.route('/api/admin/delete_all_users', methods=['DELETE'])
 def delete_all_users():

@@ -15,6 +15,7 @@ CREATE TABLE teams (
     team_icon VARCHAR(255),
     total_score INT DEFAULT 0,
     member_count INT DEFAULT 0,
+    max_members INT DEFAULT 3,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
