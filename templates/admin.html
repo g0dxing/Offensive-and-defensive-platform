@@ -51,9 +51,12 @@
                                 </label>
                                 <input type="number" id="teamCount" min="1" max="50" value="3"
                                     class="cyber-input w-full px-3 py-2 rounded-lg" placeholder="请输入队伍数量">
-                                <p class="text-xs text-gray-400 mt-1">
-                                    每个队伍将自动创建3个成员账户
-                                </p>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">每队人数</label>
+                                    <input type="number" id="maxMembers" min="1" max="10" value="3"
+                                        class="cyber-input w-full px-3 py-2 rounded-lg" placeholder="请输入每队人数">
+                                    <p class="text-xs text-gray-400 mt-1">每个队伍创建的成员数量（1-10人）</p>
+                                </div>
                             </div>
 
                             <button type="submit" class="cyber-button w-full py-2 px-4 rounded-lg font-semibold"
@@ -505,6 +508,12 @@
             showNotification('队伍数量必须在1-50之间', 'error');
             return;
         }
+        // 在获取 teamCount 的代码后面添加
+        const maxMembers = parseInt(document.getElementById('maxMembers').value);
+        if (!maxMembers || maxMembers < 1 || maxMembers > 10) {
+            showNotification('队伍人数必须在1-10之间', 'error');
+            return;
+        }
 
         // 显示加载状态
         createTeamsBtn.disabled = true;
@@ -513,7 +522,8 @@
 
         try {
             const response = await axios.post('/api/admin/create_teams', {
-                team_count: teamCount
+                team_count: teamCount,
+                max_members: maxMembers
             });
 
             if (response.data.success) {
@@ -1335,32 +1345,32 @@
 
 
 
-// 显示编辑比赛模态框
-async function showEditCompetitionModal(competitionId) {
-    try {
-        // 获取比赛详情
-        const response = await axios.get(`/api/admin/competitions/${competitionId}`);
-        if (response.data.success) {
-            const competition = response.data.competition;
+    // 显示编辑比赛模态框
+    async function showEditCompetitionModal(competitionId) {
+        try {
+            // 获取比赛详情
+            const response = await axios.get(`/api/admin/competitions/${competitionId}`);
+            if (response.data.success) {
+                const competition = response.data.competition;
 
-            // 格式化时间用于输入框
-            const formatForInput = (isoString) => {
-                if (!isoString) return '';
-                try {
-                    const date = new Date(isoString);
-                    // 转换为本地时间并格式化为YYYY-MM-DDTHH:MM
-                    const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
-                    return localDate.toISOString().slice(0, 16);
-                } catch (e) {
-                    console.error('时间格式化错误:', e);
-                    return '';
-                }
-            };
+                // 格式化时间用于输入框
+                const formatForInput = (isoString) => {
+                    if (!isoString) return '';
+                    try {
+                        const date = new Date(isoString);
+                        // 转换为本地时间并格式化为YYYY-MM-DDTHH:MM
+                        const localDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+                        return localDate.toISOString().slice(0, 16);
+                    } catch (e) {
+                        console.error('时间格式化错误:', e);
+                        return '';
+                    }
+                };
 
-            const startTime = formatForInput(competition.start_time);
-            const endTime = formatForInput(competition.end_time);
+                const startTime = formatForInput(competition.start_time);
+                const endTime = formatForInput(competition.end_time);
 
-            showModal(`
+                showModal(`
                 <h3 class="text-xl font-bold text-white mb-4">编辑比赛</h3>
                 <form id="editCompetitionForm" class="space-y-4">
                     <input type="hidden" id="editCompetitionId" value="${competition.id}">
@@ -1401,70 +1411,70 @@ async function showEditCompetitionModal(competitionId) {
                 </form>
             `);
 
-            // 添加表单提交事件
-            document.getElementById('editCompetitionForm').addEventListener('submit', async function (e) {
-                e.preventDefault();
-                await updateCompetition(competitionId);
-            });
+                // 添加表单提交事件
+                document.getElementById('editCompetitionForm').addEventListener('submit', async function (e) {
+                    e.preventDefault();
+                    await updateCompetition(competitionId);
+                });
 
-        } else {
+            } else {
+                showNotification('获取比赛信息失败', 'error');
+            }
+        } catch (error) {
+            console.error('获取比赛详情失败:', error);
             showNotification('获取比赛信息失败', 'error');
         }
-    } catch (error) {
-        console.error('获取比赛详情失败:', error);
-        showNotification('获取比赛信息失败', 'error');
     }
-}
 
-// 更新比赛信息
-async function updateCompetition(competitionId) {
-    try {
-        const startTime = document.getElementById('editCompetitionStartTime').value;
-        const endTime = document.getElementById('editCompetitionEndTime').value;
+    // 更新比赛信息
+    async function updateCompetition(competitionId) {
+        try {
+            const startTime = document.getElementById('editCompetitionStartTime').value;
+            const endTime = document.getElementById('editCompetitionEndTime').value;
 
-        // 验证时间
-        if (startTime && endTime) {
-            const startDate = new Date(startTime);
-            const endDate = new Date(endTime);
-            if (startDate >= endDate) {
-                showNotification('结束时间必须晚于开始时间', 'error');
+            // 验证时间
+            if (startTime && endTime) {
+                const startDate = new Date(startTime);
+                const endDate = new Date(endTime);
+                if (startDate >= endDate) {
+                    showNotification('结束时间必须晚于开始时间', 'error');
+                    return;
+                }
+            }
+
+            const formData = {
+                name: document.getElementById('editCompetitionName').value,
+                description: document.getElementById('editCompetitionDescription').value,
+                background_story: document.getElementById('editCompetitionStory').value,
+                start_time: startTime,
+                end_time: endTime,
+                is_active: document.getElementById('editCompetitionActive').checked
+            };
+
+            // 验证必要字段
+            if (!formData.name) {
+                showNotification('比赛名称不能为空', 'error');
                 return;
             }
-        }
 
-        const formData = {
-            name: document.getElementById('editCompetitionName').value,
-            description: document.getElementById('editCompetitionDescription').value,
-            background_story: document.getElementById('editCompetitionStory').value,
-            start_time: startTime,
-            end_time: endTime,
-            is_active: document.getElementById('editCompetitionActive').checked
-        };
+            const response = await axios.put(`/api/admin/competitions/${competitionId}`, formData);
 
-        // 验证必要字段
-        if (!formData.name) {
-            showNotification('比赛名称不能为空', 'error');
-            return;
-        }
-
-        const response = await axios.put(`/api/admin/competitions/${competitionId}`, formData);
-
-        if (response.data.success) {
-            showNotification('比赛信息更新成功', 'success');
-            closeModal();
-            loadCompetitions(); // 重新加载比赛列表
-        } else {
-            showNotification(response.data.message || '更新失败', 'error');
-        }
-    } catch (error) {
-        console.error('更新比赛失败:', error);
-        if (error.response && error.response.data) {
-            showNotification(error.response.data.message || '更新失败', 'error');
-        } else {
-            showNotification('网络连接错误，请稍后重试', 'error');
+            if (response.data.success) {
+                showNotification('比赛信息更新成功', 'success');
+                closeModal();
+                loadCompetitions(); // 重新加载比赛列表
+            } else {
+                showNotification(response.data.message || '更新失败', 'error');
+            }
+        } catch (error) {
+            console.error('更新比赛失败:', error);
+            if (error.response && error.response.data) {
+                showNotification(error.response.data.message || '更新失败', 'error');
+            } else {
+                showNotification('网络连接错误，请稍后重试', 'error');
+            }
         }
     }
-}
 
 
 
