@@ -1018,6 +1018,55 @@ def get_team_captured_targets(team_id):
             'message': '获取数据失败'
         }), 500
 
+
+@app.route('/api/admin/teams/<int:team_id>', methods=['DELETE'])
+def delete_team(team_id):
+    """删除队伍及其所有成员"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': '无权限访问'}), 403
+
+    try:
+        team = Team.query.get_or_404(team_id)
+        team_name = team.team_name
+
+        # 先删除相关的日志记录
+        SystemLog.query.filter_by(team_id=team_id).delete()
+        AttackLog.query.filter_by(team_id=team_id).delete()
+        
+        # 删除该队伍成员的Flag提交记录
+        team_member_ids = [user.id for user in User.query.filter_by(team_id=team_id).all()]
+        if team_member_ids:
+            FlagSubmission.query.filter(FlagSubmission.user_id.in_(team_member_ids)).delete(synchronize_session=False)
+        
+        # 删除队伍成员
+        User.query.filter_by(team_id=team_id).delete()
+        
+        # 最后删除队伍
+        db.session.delete(team)
+        db.session.commit()
+
+        log_entry = SystemLog(
+            log_type='system',
+            message=f'管理员删除了队伍: {team_name}',
+            severity='high',
+            user_id=session['user_id']
+        )
+        db.session.add(log_entry)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'队伍 {team_name} 删除成功'
+        })
+
+    except Exception as e:
+        print(f"删除队伍失败: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': '删除队伍失败'}), 500
+
+
+
+
 @app.route('/api/admin/all_users', methods=['GET'])
 def get_all_users():
     """获取所有用户信息（用于关联队伍）"""

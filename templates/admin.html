@@ -486,6 +486,10 @@
             <button onclick="showRenameTeamModal(${team.id}, '${team.team_name.replace(/'/g, "\\'")}')" class="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-1 px-3 rounded text-sm">
                 <i class="fas fa-edit mr-1"></i>修改队名
             </button>
+            <!-- 添加删除队伍按钮 -->
+    <button onclick="deleteTeam(${team.id}, '${team.team_name.replace(/'/g, "\\'")}')" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded text-sm">
+        <i class="fas fa-trash mr-1"></i>删除队伍
+    </button>
         </div>
     </div>
 `).join('');
@@ -1343,7 +1347,31 @@
         }
     }
 
+// 删除队伍
+async function deleteTeam(teamId, teamName) {
+    if (!confirm(`确定要删除队伍 "${teamName}" 吗？此操作将删除该队伍的所有成员和相关数据，不可恢复！`)) {
+        return;
+    }
 
+    if (!confirm(`请再次确认：这将永久删除队伍 "${teamName}" 及其所有成员！`)) {
+        return;
+    }
+
+    try {
+        const response = await axios.delete(`/api/admin/teams/${teamId}`);
+
+        if (response.data.success) {
+            showNotification(response.data.message, 'success');
+            loadTeams(); // 重新加载队伍列表
+        } else {
+            showNotification(response.data.message || '删除失败', 'error');
+        }
+
+    } catch (error) {
+        console.error('删除队伍失败:', error);
+        showNotification('删除请求失败', 'error');
+    }
+}
 
     // 显示编辑比赛模态框
     async function showEditCompetitionModal(competitionId) {
